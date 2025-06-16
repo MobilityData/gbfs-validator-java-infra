@@ -1,0 +1,126 @@
+name: Deploy GBFS Validator Cloud Function
+
+on:
+  push:
+    branches:
+      - main  # Or your specific branches for dev, qa, prod
+      # Example:
+      # - dev
+      # - qa
+      # - production
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      # Will be dynamically set based on the branch
+      TF_VAR_gcp_project_id: ""
+      TF_VAR_environment: ""
+      TF_VAR_source_bucket_name: "" # e.g., gbfs-validator-src-dev
+      # These should be configured based on your function's needs
+      TF_VAR_function_name: "gbfs-validator-function" # Can be customized per env if needed
+      TF_VAR_gcp_region: "us-central1" # Change if needed
+      TF_VAR_function_entry_point: "com.example.YourFunctionEntryPoint" # ** IMPORTANT: User needs to change this **
+      TF_VAR_jar_file_path: "path/to/your/validator.jar" # ** IMPORTANT: User needs to change this **
+      TF_VAR_function_runtime: "java11" # Or java17, java21
+      TF_VAR_function_memory_mb: 256
+      TF_VAR_function_timeout_s: 60
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Set up JDK
+      uses: actions/setup-java@v3
+      with:
+        distribution: 'temurin' # Or any other distribution
+        java-version: '11' # Or 17, 21, matching TF_VAR_function_runtime
+
+    # Add a step here to build the JAR if it's not pre-built and checked into the repo
+    # - name: Build JAR (if needed)
+    #   run: |
+    #     # e.g., mvn package -DskipTests
+    #     echo "JAR build step - customize this if your JAR is not pre-built"
+    #     # Ensure TF_VAR_jar_file_path points to the built JAR
+
+    - name: Set up Google Cloud SDK
+      uses: google-github-actions/setup-gcloud@v1
+      with:
+        project_id: ${{ env.TF_VAR_gcp_project_id }} # Will be set dynamically
+
+    - name: Authenticate to GCP
+      uses: google-github-actions/auth@v1
+      with:
+        credentials_json: ${{ secrets.GCP_SA_KEY }} # User needs to set this secret
+
+    - name: Set environment-specific variables
+      run: |
+        BRANCH_NAME=${GITHUB_REF#refs/heads/}
+        if [[ "$BRANCH_NAME" == "main" ]]; then # Assuming 'main' is for 'prod'
+          echo "Setting environment for PROD"
+          echo "TF_VAR_gcp_project_id=${{ secrets.GCP_PROJECT_ID_PROD }}" >> $GITHUB_ENV
+          echo "TF_VAR_environment=prod" >> $GITHUB_ENV
+          echo "TF_VAR_source_bucket_name=gbfs-validator-src-prod" >> $GITHUB_ENV
+          # Add other prod-specific TF_VARs if needed
+        elif [[ "$BRANCH_NAME" == "qa" ]]; then
+          echo "Setting environment for QA"
+          echo "TF_VAR_gcp_project_id=${{ secrets.GCP_PROJECT_ID_QA }}" >> $GITHUB_ENV
+          echo "TF_VAR_environment=qa" >> $GITHUB_ENV
+          echo "TF_VAR_source_bucket_name=gbfs-validator-src-qa" >> $GITHUB_ENV
+          # Add other qa-specific TF_VARs if needed
+        elif [[ "$BRANCH_NAME" == "dev" ]]; then
+          echo "Setting environment for DEV"
+          echo "TF_VAR_gcp_project_id=${{ secrets.GCP_PROJECT_ID_DEV }}" >> $GITHUB_ENV
+          echo "TF_VAR_environment=dev" >> $GITHUB_ENV
+          echo "TF_VAR_source_bucket_name=gbfs-validator-src-dev" >> $GITHUB_ENV
+          # Add other dev-specific TF_VARs if needed
+        else
+          echo "Branch $BRANCH_NAME is not configured for deployment."
+          exit 1
+        fi
+        echo "VERIFYING ENV VARS:"
+        echo "Project ID: ${{ env.TF_VAR_gcp_project_id }}"
+        echo "Environment: ${{ env.TF_VAR_environment }}"
+        echo "Source Bucket: ${{ env.TF_VAR_source_bucket_name }}"
+        echo "Entry Point: ${{ env.TF_VAR_function_entry_point }}"
+        echo "JAR Path: ${{ env.TF_VAR_jar_file_path }}"
+
+
+    - name: Set up Terraform
+      uses: hashicorp/setup-terraform@v2
+      with:
+        terraform_version: 1.2.0 # Or your desired version
+
+    - name: Terraform Init
+      run: terraform init
+      env:
+        # Pass GCS backend config if you decide to use it
+        # GOOGLE_APPLICATION_CREDENTIALS: ${{ steps.auth.outputs.credentials_path }} # Not needed if using default auth
+        TF_CLI_ARGS_init: "-backend-config=bucket=${{ env.TF_VAR_environment }}-gbfs-tf-state -backend-config=prefix=gbfs-validator"
+
+
+    - name: Terraform Validate
+      run: terraform validate
+
+    - name: Terraform Plan
+      id: plan
+      run: terraform plan -input=false -no-color -out=tfplan
+      continue-on-error: true # To allow viewing the plan even if there are errors for PRs
+
+    - name: Terraform Plan Status
+      if: steps.plan.outcome == 'failure'
+      run: |
+        echo "Terraform Plan failed!"
+        exit 1
+
+    # On pull requests, you might only want to run init, validate, and plan.
+    # The apply step should only run on merges to specific branches.
+    - name: Terraform Apply
+      if: github.event_name == 'push' # Only apply on direct pushes to configured branches
+      run: terraform apply -auto-approve -input=false tfplan
+
+    # Optional: Add a step to output the function URL
+    - name: Show Function URL
+      if: github.event_name == 'push'
+      run: |
+        echo "Cloud Function URL: $(terraform output -raw function_url)"
