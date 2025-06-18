@@ -1,119 +1,118 @@
-# gbfs-validator-java-infra
+# GBFS Validator Java Infrastructure
 
+This repository contains Terraform infrastructure configuration for the GBFS Validator service, intended for internal use at **MobilityData**.  
+Access to any MobilityData-managed Google Cloud environment is **restricted** unless explicitly authorized.
 
-# Set up new GCP environment
+---
 
-`All roads lead to Rome!` This quote is a reminder that there are multiple ways to get to the same final state.
-Take the following steps as a guidance and adapt them to your own local and organizational requirements.
-For more information regarding Google Cloud Platform and terraform go to the [Official GCP Site](https://cloud.google.com/) and [Terraform Official Site](https://www.terraform.io/).
+## Setting Up a New GCP Environment
 
-## Initial project and remote state set up
+> _"All roads lead to Rome!"_  
+> There are many paths to reach the same destination. Use the following steps as a **guideline** and adapt them to your local or organizational requirements.
 
-- Create GCP project
+For more information, refer to the [Google Cloud Platform documentation](https://cloud.google.com/) and the [Terraform documentation](https://www.terraform.io/).
 
-```shell
+---
+
+## Initial Project and Remote State Setup
+
+> _These instructions apply when creating a **new** environment._  
+> For illustration purposes, the examples below assume the GCP project is `gbfs-validator-staging` and the application environment is `dev`.
+
+### 1. Create a GCP Project
+
+```bash
 gcloud projects create gbfs-validator-staging --name="GBFS Validator Staging"
 ```
 
-- Assign a billing account to the project
-- Create a Firebase project to host the UI
-- Create Oauth credentials and to be used as part of the terraform parameters
-- Create SSL certificates for the Load Balancer
-- Enable and configure Identity Platform
-- Login to gcloud cli using,
+### 2. Assign a Billing Account
 
-```shell
+Link your billing account to the new project via GCP Console or CLI.
+
+### 3. Set Up Firebase (for UI Hosting)
+
+Create a Firebase project and link it to the GCP project.
+
+### 4. Configure OAuth Credentials
+
+Create OAuth client credentials via the [APIs & Services > Credentials](https://console.cloud.google.com/apis/credentials) page.  
+These credentials will be passed as Terraform variables.
+
+### 5. Create SSL Certificates
+
+Configure Google-managed or self-managed certificates for the HTTPS Load Balancer.
+
+### 6. Enable and Configure Identity Platform
+
+Enable Identity Platform in the project and configure authentication providers as needed.
+
+### 7. Authenticate with Google Cloud CLI
+
+```bash
 gcloud auth application-default login
 ```
 
-- Point local project environment variable to the newly created project
+### 8. Set the Active GCP Project
 
-```shell
+```bash
 gcloud config set project gbfs-validator-staging
 ```
 
-- Create a cloud storage bucket to persist the terraform state
-```
+### 9. Create a Cloud Storage Bucket for Terraform State
+
+```bash
 gcloud storage buckets create gs://mobilitydata-gbfs-validator-state-staging \
   --project=gbfs-validator-staging \
   --location=northamerica-northeast1 \
   --uniform-bucket-level-access
 ```
-- Create a terraform backend file using the template `backend.conf.rename_me` with name backend-<environment>.conf and populate the file with valid values.
 
-- Create deployer service account
+### 10. Configure the Terraform Backend
+
+Copy the file `backend.conf.rename_me` and rename it to:
+
+```bash
+backend-dev.conf
 ```
+
+Populate it with valid values matching the GCP project and bucket.
+
+### 11. Create the Deployer Service Account
+
+```bash
 gcloud iam service-accounts create gbfs-deployer-service-account \
   --display-name="GBFS Terraform Deployer"
 ```
-- Execute,
 
-```shell
-terraform init -backend-config=backend-<environment>.conf
+### 12. Run the Environment Setup Script
+
+```bash
+../scripts/setup-environment.sh gbfs-validator-staging dev
 ```
 
-- Create a terraform variables file using the template `vars.tfvars.rename_me` with name vars-<env>.tfvars and populate the file with valid values.
-- Execute and review the terraform plan,
+### 13. Initialize Terraform
 
-```shell
-  terraform plan -var-file=vars-<environment>.tfvars
+```bash
+terraform init -backend-config=backend-dev.conf
 ```
 
-- Once you had reviewed the plan, execute the terraform apply command to commit the changes to the GCP environment using,
-- To be able to execute the apply command on the terraform-init project you need Project IAM Admin role
+### 14. Apply the Terraform Plan
 
-```shell
-terraform apply -var-file=vars-<environment>.tfvars
+```bash
+terraform apply -var="environment=dev"
 ```
 
-- Troubleshooting
-  - Make sure you have the right permissions.
-  - `There is a delay due to configuration propagation on newly GCP enabled services`. In this case wait for the change to be propagated and execute the terraform apply command again.
-  - If you had a previous GCP environment set up in your local folders, remove `.terraform` folder and `terraform.state*` files locally before running `terraform init` command.
+---
 
-### Adding new GCP service to the stack
+## You're Ready!
 
-The initial project set up is required while setting up a GCP environment also when `a new GCP service` is added to the stack.
-When a new service is added to the stack the service account used to deploy the infrastructure needs to have the required permissions.
-In this case,
+Happy coding!
 
-- Add/modify roles and policies as necessary to the deployer's servie account in the `infra/terraform-init/main.tf`
-- From `infra/terraform-init/` execute,
+# Adding a new Google Cloud Service
 
-```shell
-terraform apply -var-file=vars-<environment>.tfvars
+1. Locate the service list in the `.scripts/setup-environment.s` script
+2. Execute the script,
 ```
-
-- Now you are in position to execute the main terraform script from `infra` folder.
-
-## Deploy Feeds API
-
-- Open the terminal in the folder `<project_dir>/infra`
-- Create a terraform backend file using the template `backend.conf.rename_me` with name backend-<environment>.conf and populate the file with valid values.
-- Execute,
-
-```shell
-terraform init -backend-config=backend-<environment>.conf
+./scripts/setup-environment.sh gbfs-validator-staging dev
 ```
-
-- One-time artifact set up. Set up the GCP artifact registry before-hand to be able to publish docker images.
-
-```shell
-terraform apply -var-file=vars-<environment>.tfvars -target=module.artifact-registry
-```
-
-- Remember that: `There is a delay due to configuration propagation on newly GCP enabled services.`. You might get 403 responses while GCP is propagating the new configuration.
-- You need at least one docker image published to be able to deploy the cloud run service. Execute the following script,
-
-```shell
-<project_dir>/scripts/docker-build-push.sh -project_id mobility-feeds-<environment> -service feed-api -repo_name feeds-<environment> -region northamerica-northeast1 -version <version_number>
-```
-
-- Set the version number on the `infra/vars-<environment>.tfvars` file.
-- Execute apply from infra folder
-
-```shell
-terraform apply -var-file=vars-<environment>.tfvars
-```
-
-- Enjoy Coding!
+ 
