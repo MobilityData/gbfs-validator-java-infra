@@ -1,8 +1,58 @@
 #!/bin/bash
 
 #
-# MobilityData 2025 - GBFS Validator Container Builder
+# MobilityData 2025
 #
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
+###############################################################################
+# GBFS Validator Container Builder Script
+# MobilityData 2025
+#
+# This script automates building, testing, running, and pushing the Docker image
+# for the GBFS Validator API. It is intended for use in local development,
+# testing, and CI/CD pipelines targeting Artifact Registry on Google Cloud.
+#
+# USAGE:
+#   ./docker-build-validator.sh [options]
+#
+# OPTIONS:
+
+#   -project_id <PROJECT_ID>      GCP project ID (default: gbfs-validator-staging)
+#   -region <REGION>              GCP region (default: northamerica-northeast1)
+#   -repo_name <REPO_NAME>        Artifact Registry Docker repo name (default: gbfs-validator)
+#   -service <SERVICE>            Service name (default: gbfs_validator_api)
+#   -version <VERSION>            Image version tag (default: latest)
+#   --test                        Build and run the container locally
+#   --push                        Push the container to Artifact Registry
+#   --run                         Run the local image (no rebuild, no push)
+#   -h | --help                   Show this help message
+#
+# EXAMPLES:
+#   Build only (no push/run):
+#     ./docker-build-validator.sh
+#
+#   Build and run locally for testing:
+#     ./docker-build-validator.sh --test
+#
+#   Build and push to GCP Artifact Registry:
+#     ./docker-build-validator.sh --push -project_id my-project -region us-central1
+#
+#   Run previously built local image:
+#     ./docker-build-validator.sh --run
+#
+###############################################################################
 
 set -euo pipefail
 

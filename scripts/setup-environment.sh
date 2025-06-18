@@ -1,6 +1,22 @@
 #!/bin/bash
 
 #
+# MobilityData 2025
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
+#
 # -----------------------------------------------------------------------------
 # GBFS Validator: GCP Project Bootstrap Script
 # -----------------------------------------------------------------------------
@@ -16,6 +32,18 @@
 # - Applies a cleanup policy:
 #     - KEEP the latest 5 image versions (any tag state)
 #     - DELETE any untagged images older than 30 days
+#
+# Resources created or configured:
+# - Service Account: gbfs-deployer-service-account@<PROJECT_ID>.iam.gserviceaccount.com
+# - IAM Roles: cloudfunctions.developer, storage.admin, iam.serviceAccountAdmin,
+#   iam.serviceAccountTokenCreator, iam.serviceAccountUser
+# - IAM Policy Bindings for service account impersonation
+# - Artifact Registry API enabled
+# - Artifact Registry repository: gbfs-validator-<ENVIRONMENT>
+# - Artifact Registry cleanup policies (keep latest 5 images, delete untagged >30d)
+# - Google APIs enabled: artifactregistry, cloudfunctions, cloudbuild, run,
+#   certificatemanager, compute
+# - IAM Policy Binding for deployer to impersonate gbfs-validator-service-account
 #
 # Usage:
 #   ./bootstrap.sh <GCP_PROJECT_ID> <ENVIRONMENT> [<REGION>]
