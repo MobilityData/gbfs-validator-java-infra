@@ -14,7 +14,6 @@
 # limitations under the License.
 #
 
-
 # This make the google project information accessible only keeping the project_id as a parameter in the previous provider resource
 data "google_project" "project" {
 }
@@ -48,14 +47,10 @@ data "archive_file" "source_zip" {
 resource "google_cloud_run_v2_service" "gbfs_validator_api" {
   name        = "${var.environment}-${local.gbfs_validator_config.name_suffix}"
   location = var.gcp_region
-#   ingress = "INGRESS_TRAFFIC_INTERNAL_LOAD_BALANCER"
+  ingress = "INGRESS_TRAFFIC_INTERNAL_LOAD_BALANCER"
 
   template {
     service_account = var.gbfs_validator_service_account_email
-    # vpc_access {
-    #   connector = data.google_vpc_access_connector.vpc_connector.id
-    #   egress = "ALL_TRAFFIC"
-    # }
     containers {
       image = "${var.gcp_region}-docker.pkg.dev/${var.project_id}/${local.artifact_registry_repo}/${var.gbfs_api_service}:${var.feed_api_image_version}"
       resources {

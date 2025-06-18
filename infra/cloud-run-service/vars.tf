@@ -61,12 +61,6 @@ variable "jar_file_name" {
     default = "gbfs-validator-java-api.jar"
 }
 
-# variable "deployer_service_account" {
-#   type        = string
-#   description = "Service account used to deploy resources using impersonation"
-#   default = "gbfs_deployer_service_account"
-# }
-
 variable "gbfs_validator_service_account_email" {
     type = string
     description = "Service account use for runtime operations"

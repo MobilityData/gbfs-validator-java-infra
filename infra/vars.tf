@@ -66,8 +66,3 @@ variable "deployer_service_account" {
   description = "Service account used to deploy resources using impersonation"
   default = "gbfs_deployer_service_account"
 }
-
-# variable "artifact_repo_name" {
-#   type = string
-#   description = "Name of the artifact repository"
-# }
