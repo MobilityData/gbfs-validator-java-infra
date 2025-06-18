@@ -115,5 +115,5 @@ resource "google_compute_global_forwarding_rule" "https_forwarding_rule_ipv6" {
 # Reference manually created SSL certificate
 data "google_compute_ssl_certificate" "cert" {
   project = var.project_id  
-  name = "gbfs-beta-api-mobilitydatabase-org"
+  name = "${var.environment}-gbfs-api-mobilitydatabase-org"
 }
