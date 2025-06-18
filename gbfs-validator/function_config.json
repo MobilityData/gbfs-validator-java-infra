@@ -1,0 +1,13 @@
+{
+  "name_suffix": "gbfs-validator-api",
+  "description": "API containing the GBFS validator",
+  "entry_point": "org.entur.gbfs.validator.api.handler.OpenApiGeneratorApplication",
+  "timeout": 540,
+  "available_memory": "1Gi",
+  "trigger_http": true,
+  "ingress_settings": "ALLOW_ALL",
+  "max_instance_request_concurrency": 1,
+  "max_instance_count": 5,
+  "min_instance_count": 0,
+  "available_cpu": 1
+}
