@@ -96,10 +96,15 @@ gcloud iam service-accounts create gbfs-deployer-service-account \
 terraform init -backend-config=backend-dev.conf
 ```
 
+### 14. Build and push the GBFS API docker
+```bash
+../scripts/docker-build-validator.sh --push -version dev-$(($(date +%s)/60))
+```
+
 ### 14. Apply the Terraform Plan
 
 ```bash
-terraform apply -var="environment=dev"
+terraform apply -var="environment=dev" -var=-"gbfs_api_image_version=<<TAG from previous step>>"
 ```
 
 ---
