@@ -43,9 +43,9 @@ variable "gbfs_api_service" {
   default = "gbfs_validator_api"
 }
 
-variable "feed_api_image_version" {
+variable "gbfs_api_image_version" {
   type = string
-  description = "API image version"
+  description = "GBFS API image version"
   default = "latest"
 }
 

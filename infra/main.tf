@@ -32,6 +32,7 @@ module "cloud_run" {
   source                = "./cloud-run-service"
   environment           = var.environment
   gbfs_validator_service_account_email = google_service_account.gbfs_validator_service_account.email
+  gbfs_api_image_version = var.gbfs_api_image_version
 }
 
 module "load_balancer" {

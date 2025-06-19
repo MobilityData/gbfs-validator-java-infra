@@ -52,7 +52,7 @@ resource "google_cloud_run_v2_service" "gbfs_validator_api" {
   template {
     service_account = var.gbfs_validator_service_account_email
     containers {
-      image = "${var.gcp_region}-docker.pkg.dev/${var.project_id}/${local.artifact_registry_repo}/${var.gbfs_api_service}:${var.feed_api_image_version}"
+      image = "${var.gcp_region}-docker.pkg.dev/${var.project_id}/${local.artifact_registry_repo}/${var.gbfs_api_service}:${var.gbfs_api_image_version}"
       resources {
         limits = {
           cpu    = local.gbfs_validator_config.available_cpu
@@ -66,4 +66,13 @@ resource "google_cloud_run_v2_service" "gbfs_validator_api" {
     environment = var.environment
     app         = var.gbfs_validator_app_name
   }
+}
+
+
+resource "google_cloud_run_service_iam_member" "gbfs_validator_invoker" {
+  project  = var.project_id
+  location = var.gcp_region
+  service  = google_cloud_run_v2_service.gbfs_validator_api.name
+  role     = "roles/run.invoker"
+  member   = "allUsers"
 }
