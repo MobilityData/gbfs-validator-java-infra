@@ -20,11 +20,14 @@ terraform {
   backend "gcs" {}
 }
 
-# Service account to execute the cloud functions
+# Service account to execute the cloud functions.
+# CI/CD: account_id is suffixed with the environment (e.g. gbfs-validator-dev-service-account)
+# because dev and qa share the same GCP project (gbfs-validator-staging). Without the suffix
+# both TF states would attempt to manage the same SA resource, causing conflicts on apply.
 resource "google_service_account" "gbfs_validator_service_account" {
-  project    = var.project_id
-  account_id   = "gbfs-validator-service-account"
-  display_name = "GBFS Validator Service Account"
+  project      = var.project_id
+  account_id   = "gbfs-validator-service-account-${var.environment}"
+  display_name = "GBFS Validator Service Account (${var.environment})"
 }
 
 # CI/CD: The deployer service account data source was removed. The deployer SA email

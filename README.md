@@ -5,14 +5,26 @@ Access to any MobilityData-managed Google Cloud environment is **restricted** un
 
 ---
 
+## GCP Project Structure
+
+| Environment | GCP Project | Cloud Run Service | Status |
+|---|---|---|---|
+| `dev` | `gbfs-validator-staging` | `dev-gbfs-validator-api` | Existing |
+| `qa` | `gbfs-validator-staging` | `qa-gbfs-validator-api` | To be deployed |
+| `prod` | `gbfs-validator` _(to be created)_ | `prod-gbfs-validator-api` | To be created |
+
+> **Note:** `dev` and `qa` share the same GCP project (`gbfs-validator-staging`). Each environment has its own Cloud Run service, Artifact Registry repository, runtime service account, and Terraform remote state. `prod` lives in a separate dedicated project.
+
+---
+
 ## CI/CD Workflows
 
 Three GitHub Actions workflows deploy the GBFS Validator API to each environment:
 
 | Workflow | Trigger | Environment | Image version |
 |---|---|---|---|
-| `gbfs-validator-dev.yml` | `workflow_dispatch` | dev | `github.sha` |
-| `gbfs-validator-qa.yml` | `workflow_dispatch` / `workflow_call` | qa | `github.sha` |
+| `gbfs-validator-staging.yml` | `pull_request` | dev | `github.sha` |
+| `gbfs-validator-staging.yml` | `push` to `main` | qa | `github.sha` |
 | `gbfs-validator-prod.yml` | `workflow_dispatch` / `workflow_call` | prod | `github.ref_name` (release tag) |
 
 Each env-specific workflow calls the shared reusable deployer (`gbfs-validator-deployer.yml`) which:
@@ -24,22 +36,29 @@ Each env-specific workflow calls the shared reusable deployer (`gbfs-validator-d
 
 | Secret | Description |
 |---|---|
-| `DEV_GCP_GBFS_VALIDATOR_SA_KEY` | Deployer SA JSON key for dev |
-| `QA_GCP_GBFS_VALIDATOR_SA_KEY` | Deployer SA JSON key for qa |
+| `STAGING_GCP_GBFS_VALIDATOR_SA_KEY` | Deployer SA JSON key for staging (dev + qa) |
 | `PROD_GCP_GBFS_VALIDATOR_SA_KEY` | Deployer SA JSON key for prod |
 
 ### Required GitHub Actions Variables
 
-| Variable | Example value | Description |
+| Variable | Value | Description |
 |---|---|---|
 | `GBFS_VALIDATOR_REGION` | `northamerica-northeast1` | GCP region (shared) |
 | `DEV_GBFS_VALIDATOR_ENVIRONMENT` | `dev` | Environment name |
-| `DEV_GBFS_VALIDATOR_PROJECT_ID` | `gbfs-validator-dev` | GCP project ID |
-| `DEV_GBFS_VALIDATOR_TF_STATE_BUCKET` | `dev` | Environment suffix for the GCS TF state bucket (`mobilitydata-gbfs-validator-state-{suffix}`) |
+| `DEV_GBFS_VALIDATOR_PROJECT_ID` | `gbfs-validator-staging` | GCP project ID (shared with qa) |
+| `DEV_GBFS_VALIDATOR_TF_STATE_BUCKET` | `dev` | Suffix for TF state bucket (`mobilitydata-gbfs-validator-state-dev`) |
 | `DEV_GBFS_VALIDATOR_TF_STATE_OBJECT_PREFIX` | `terraform/state` | GCS object prefix for TF state |
-| `DEV_GBFS_VALIDATOR_DEPLOYER_SA` | `gbfs-deployer-service-account@gbfs-validator-dev.iam.gserviceaccount.com` | Deployer SA email |
-
-Repeat the last four rows with `QA_` and `PROD_` prefixes for the other environments.
+| `DEV_GBFS_VALIDATOR_DEPLOYER_SA` | `gbfs-deployer-service-account@gbfs-validator-staging.iam.gserviceaccount.com` | Deployer SA email |
+| `QA_GBFS_VALIDATOR_ENVIRONMENT` | `qa` | Environment name |
+| `QA_GBFS_VALIDATOR_PROJECT_ID` | `gbfs-validator-staging` | GCP project ID (shared with dev) |
+| `QA_GBFS_VALIDATOR_TF_STATE_BUCKET` | `qa` | Suffix for TF state bucket (`mobilitydata-gbfs-validator-state-qa`) |
+| `QA_GBFS_VALIDATOR_TF_STATE_OBJECT_PREFIX` | `terraform/state` | GCS object prefix for TF state |
+| `QA_GBFS_VALIDATOR_DEPLOYER_SA` | `gbfs-deployer-service-account@gbfs-validator-staging.iam.gserviceaccount.com` | Deployer SA email |
+| `PROD_GBFS_VALIDATOR_ENVIRONMENT` | `prod` | Environment name |
+| `PROD_GBFS_VALIDATOR_PROJECT_ID` | `gbfs-validator` _(to be created)_ | GCP project ID |
+| `PROD_GBFS_VALIDATOR_TF_STATE_BUCKET` | `prod` | Suffix for TF state bucket (`mobilitydata-gbfs-validator-state-prod`) |
+| `PROD_GBFS_VALIDATOR_TF_STATE_OBJECT_PREFIX` | `terraform/state` | GCS object prefix for TF state |
+| `PROD_GBFS_VALIDATOR_DEPLOYER_SA` | `gbfs-deployer-service-account@gbfs-validator.iam.gserviceaccount.com` | Deployer SA email |
 
 ---
 
@@ -55,7 +74,8 @@ For more information, refer to the [Google Cloud Platform documentation](https:/
 ## Initial Project and Remote State Setup
 
 > _These instructions apply when creating a **new** environment._  
-> For illustration purposes, the examples below assume the GCP project is `gbfs-validator-staging` and the application environment is `dev`.
+> `dev` and `qa` already exist in `gbfs-validator-staging`. These steps apply when setting up `prod` (project `gbfs-validator`) or any future environment.  
+> For illustration purposes, the examples below use `gbfs-validator-staging` as the project and `dev` as the environment — substitute accordingly.
 
 ### 1. Create a GCP Project
 
