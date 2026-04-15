@@ -11,32 +11,42 @@ Access to any MobilityData-managed Google Cloud environment is **restricted** un
 |---|---|---|---|
 | `dev` | `gbfs-validator-staging` | `dev-gbfs-validator-api` | Existing |
 | `qa` | `gbfs-validator-staging` | `qa-gbfs-validator-api` | To be deployed |
+| `<custom>` | `gbfs-validator-staging` | `<custom>-gbfs-validator-api` | On-demand |
 | `prod` | `gbfs-validator` _(to be created)_ | `prod-gbfs-validator-api` | To be created |
 
-> **Note:** `dev` and `qa` share the same GCP project (`gbfs-validator-staging`). Each environment has its own Cloud Run service, Artifact Registry repository, runtime service account, and Terraform remote state. `prod` lives in a separate dedicated project.
+> **Note:** `dev`, `qa`, and any custom environments (e.g. `jc`) share the same GCP project (`gbfs-validator-staging`). Each environment gets its own Cloud Run service, Artifact Registry repo, runtime service account, and Terraform state (isolated by prefix in a shared GCS bucket). `prod` lives in a separate dedicated project.
 
 ---
 
 ## CI/CD Workflows
 
-Three GitHub Actions workflows deploy the GBFS Validator API to each environment:
+Two GitHub Actions workflows deploy the GBFS Validator API:
 
 | Workflow | Trigger | Environment | Image version |
 |---|---|---|---|
-| `gbfs-validator-staging.yml` | `pull_request` | dev | `github.sha` |
-| `gbfs-validator-staging.yml` | `push` to `main` | qa | `github.sha` |
-| `gbfs-validator-prod.yml` | `workflow_dispatch` / `workflow_call` | prod | `github.ref_name` (release tag) |
+| `gbfs-validator-staging.yml` | `pull_request` | `dev` | `github.sha` |
+| `gbfs-validator-staging.yml` | `push` to `main` | `qa` | `github.sha` |
+| `gbfs-validator-staging.yml` | `workflow_dispatch` | user-specified (e.g. `jc`) | `github.sha` |
+| `gbfs-validator-prod.yml` | `workflow_dispatch` / `workflow_call` | `prod` | `github.ref_name` (release tag) |
 
-Each env-specific workflow calls the shared reusable deployer (`gbfs-validator-deployer.yml`) which:
+Both call the shared reusable deployer (`gbfs-validator-deployer.yml`) which:
 1. Authenticates to GCP using the deployer service account JSON key
 2. Builds and pushes the Docker image to Artifact Registry
 3. Runs `terraform apply` to deploy the Cloud Run service
+
+### Terraform State Isolation
+
+Each environment's state is stored under its own prefix in a shared bucket:
+- Staging: `mobilitydata-gbfs-validator-state-staging/{env}/terraform/state`
+- Prod: `mobilitydata-gbfs-validator-state-prod/prod/terraform/state`
+
+This means `terraform apply` for one environment cannot affect another.
 
 ### Required GitHub Actions Secrets
 
 | Secret | Description |
 |---|---|
-| `STAGING_GCP_GBFS_VALIDATOR_SA_KEY` | Deployer SA JSON key for staging (dev + qa) |
+| `STAGING_GCP_GBFS_VALIDATOR_SA_KEY` | Deployer SA JSON key for staging (all staging envs) |
 | `PROD_GCP_GBFS_VALIDATOR_SA_KEY` | Deployer SA JSON key for prod |
 
 ### Required GitHub Actions Variables
@@ -44,21 +54,12 @@ Each env-specific workflow calls the shared reusable deployer (`gbfs-validator-d
 | Variable | Value | Description |
 |---|---|---|
 | `GBFS_VALIDATOR_REGION` | `northamerica-northeast1` | GCP region (shared) |
-| `DEV_GBFS_VALIDATOR_ENVIRONMENT` | `dev` | Environment name |
-| `DEV_GBFS_VALIDATOR_PROJECT_ID` | `gbfs-validator-staging` | GCP project ID (shared with qa) |
-| `DEV_GBFS_VALIDATOR_TF_STATE_BUCKET` | `dev` | Suffix for TF state bucket (`mobilitydata-gbfs-validator-state-dev`) |
-| `DEV_GBFS_VALIDATOR_TF_STATE_OBJECT_PREFIX` | `terraform/state` | GCS object prefix for TF state |
-| `DEV_GBFS_VALIDATOR_DEPLOYER_SA` | `gbfs-deployer-service-account@gbfs-validator-staging.iam.gserviceaccount.com` | Deployer SA email |
-| `QA_GBFS_VALIDATOR_ENVIRONMENT` | `qa` | Environment name |
-| `QA_GBFS_VALIDATOR_PROJECT_ID` | `gbfs-validator-staging` | GCP project ID (shared with dev) |
-| `QA_GBFS_VALIDATOR_TF_STATE_BUCKET` | `qa` | Suffix for TF state bucket (`mobilitydata-gbfs-validator-state-qa`) |
-| `QA_GBFS_VALIDATOR_TF_STATE_OBJECT_PREFIX` | `terraform/state` | GCS object prefix for TF state |
-| `QA_GBFS_VALIDATOR_DEPLOYER_SA` | `gbfs-deployer-service-account@gbfs-validator-staging.iam.gserviceaccount.com` | Deployer SA email |
-| `PROD_GBFS_VALIDATOR_ENVIRONMENT` | `prod` | Environment name |
-| `PROD_GBFS_VALIDATOR_PROJECT_ID` | `gbfs-validator` _(to be created)_ | GCP project ID |
-| `PROD_GBFS_VALIDATOR_TF_STATE_BUCKET` | `prod` | Suffix for TF state bucket (`mobilitydata-gbfs-validator-state-prod`) |
-| `PROD_GBFS_VALIDATOR_TF_STATE_OBJECT_PREFIX` | `terraform/state` | GCS object prefix for TF state |
-| `PROD_GBFS_VALIDATOR_DEPLOYER_SA` | `gbfs-deployer-service-account@gbfs-validator.iam.gserviceaccount.com` | Deployer SA email |
+| `STAGING_GBFS_VALIDATOR_PROJECT_ID` | `gbfs-validator-staging` | Staging GCP project ID |
+| `STAGING_GBFS_VALIDATOR_TF_STATE_BUCKET` | `mobilitydata-gbfs-validator-state-staging` | Staging TF state bucket (shared) |
+| `STAGING_GBFS_VALIDATOR_DEPLOYER_SA` | `gbfs-deployer-service-account@gbfs-validator-staging.iam.gserviceaccount.com` | Staging deployer SA |
+| `PROD_GBFS_VALIDATOR_PROJECT_ID` | `gbfs-validator` _(to be created)_ | Prod GCP project ID |
+| `PROD_GBFS_VALIDATOR_TF_STATE_BUCKET` | `mobilitydata-gbfs-validator-state-prod` | Prod TF state bucket |
+| `PROD_GBFS_VALIDATOR_DEPLOYER_SA` | `gbfs-deployer-service-account@gbfs-validator.iam.gserviceaccount.com` | Prod deployer SA |
 
 ---
 
@@ -128,7 +129,8 @@ gcloud storage buckets create gs://mobilitydata-gbfs-validator-state-dev \
 ### 10. Configure the Terraform Backend
 
 Copy `infra/backend.conf.rename_me` to `infra/backend.conf` and populate it.  
-`BUCKET_NAME` is the environment-specific **suffix** — the full bucket name becomes `mobilitydata-gbfs-validator-state-{BUCKET_NAME}` (e.g. use `dev` for the dev environment).
+`BUCKET_NAME` is the full GCS bucket name (e.g. `mobilitydata-gbfs-validator-state-staging`).  
+`ENVIRONMENT` is the environment name (e.g. `dev`, `qa`, `jc`) — it becomes the state prefix to isolate each environment's state within the shared bucket.
 
 ### 11. Run the Environment Setup Script
 

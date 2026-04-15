@@ -15,10 +15,12 @@
 #
 
 # Deploys to the gbfs-validator-staging GCP project.
-# - Pull request        → deploys to DEV
-# - Push to main        → deploys to QA
-# - Manual dispatch     → choose dev or qa
-# Both environments share the same GCP project and SA key secret.
+# Environment is resolved from the trigger:
+#   - pull_request     → dev
+#   - push to main     → qa
+#   - workflow_dispatch → user-specified (freeform, e.g. "jc", "dev", "qa")
+# All staging environments share the same GCP project, SA key, and TF state bucket.
+# Each environment gets its own state prefix and uniquely-named GCP resources.
 name: Deploy GBFS Validator - Staging
 
 on:
@@ -29,45 +31,38 @@ on:
   workflow_dispatch:
     inputs:
       target_environment:
-        description: "Override target environment"
+        description: "Environment name (e.g. dev, qa, jc)"
         required: true
-        type: choice
-        options:
-          - dev
-          - qa
+        type: string
 
 jobs:
-  deploy-dev:
-    # Runs on PR events, or manual dispatch with target_environment=dev
-    if: >-
-      github.event_name == 'pull_request' ||
-      (github.event_name == 'workflow_dispatch' && inputs.target_environment == 'dev')
-    uses: ./.github/workflows/gbfs-validator-deployer.yml
-    with:
-      ENVIRONMENT: ${{ vars.DEV_GBFS_VALIDATOR_ENVIRONMENT }}
-      BUCKET_NAME: ${{ vars.DEV_GBFS_VALIDATOR_TF_STATE_BUCKET }}
-      OBJECT_PREFIX: ${{ vars.DEV_GBFS_VALIDATOR_TF_STATE_OBJECT_PREFIX }}
-      PROJECT_ID: ${{ vars.DEV_GBFS_VALIDATOR_PROJECT_ID }}
-      REGION: ${{ vars.GBFS_VALIDATOR_REGION }}
-      DEPLOYER_SERVICE_ACCOUNT: ${{ vars.DEV_GBFS_VALIDATOR_DEPLOYER_SA }}
-      GBFS_API_IMAGE_VERSION: ${{ github.sha }}
-      TF_APPLY: true
-    secrets:
-      GCP_GBFS_VALIDATOR_SA_KEY: ${{ secrets.STAGING_GCP_GBFS_VALIDATOR_SA_KEY }}
+  # Resolves the environment name from the trigger context.
+  # Subsequent jobs reference this output to stay DRY.
+  resolve-environment:
+    runs-on: ubuntu-latest
+    outputs:
+      environment: ${{ steps.resolve.outputs.environment }}
+    steps:
+      - name: Resolve environment from trigger
+        id: resolve
+        run: |
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            echo "environment=dev" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.event_name }}" == "push" ]]; then
+            echo "environment=qa" >> $GITHUB_OUTPUT
+          else
+            echo "environment=${{ inputs.target_environment }}" >> $GITHUB_OUTPUT
+          fi
 
-  deploy-qa:
-    # Runs on push to main, or manual dispatch with target_environment=qa
-    if: >-
-      (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
-      (github.event_name == 'workflow_dispatch' && inputs.target_environment == 'qa')
+  deploy:
+    needs: resolve-environment
     uses: ./.github/workflows/gbfs-validator-deployer.yml
     with:
-      ENVIRONMENT: ${{ vars.QA_GBFS_VALIDATOR_ENVIRONMENT }}
-      BUCKET_NAME: ${{ vars.QA_GBFS_VALIDATOR_TF_STATE_BUCKET }}
-      OBJECT_PREFIX: ${{ vars.QA_GBFS_VALIDATOR_TF_STATE_OBJECT_PREFIX }}
-      PROJECT_ID: ${{ vars.QA_GBFS_VALIDATOR_PROJECT_ID }}
+      ENVIRONMENT: ${{ needs.resolve-environment.outputs.environment }}
+      BUCKET_NAME: ${{ vars.STAGING_GBFS_VALIDATOR_TF_STATE_BUCKET }}
+      PROJECT_ID: ${{ vars.STAGING_GBFS_VALIDATOR_PROJECT_ID }}
       REGION: ${{ vars.GBFS_VALIDATOR_REGION }}
-      DEPLOYER_SERVICE_ACCOUNT: ${{ vars.QA_GBFS_VALIDATOR_DEPLOYER_SA }}
+      DEPLOYER_SERVICE_ACCOUNT: ${{ vars.STAGING_GBFS_VALIDATOR_DEPLOYER_SA }}
       GBFS_API_IMAGE_VERSION: ${{ github.sha }}
       TF_APPLY: true
     secrets:

@@ -28,7 +28,7 @@ terraform {
 }
 
 locals {
-  gbfs_validator_config = jsondecode(file("${path.module}/../../gbfs-validator/function_config.json"))
+  gbfs_validator_config  = jsondecode(file("${path.module}/../../gbfs-validator/function_config.json"))
   artifact_registry_repo = "gbfs-validator-${var.environment}"
 }
 
@@ -45,9 +45,9 @@ data "archive_file" "source_zip" {
 }
 
 resource "google_cloud_run_v2_service" "gbfs_validator_api" {
-  name        = "${var.environment}-${local.gbfs_validator_config.name_suffix}"
+  name     = "${var.environment}-${local.gbfs_validator_config.name_suffix}"
   location = var.gcp_region
-  ingress = "INGRESS_TRAFFIC_INTERNAL_LOAD_BALANCER"
+  ingress  = "INGRESS_TRAFFIC_INTERNAL_LOAD_BALANCER"
 
   template {
     service_account = var.gbfs_validator_service_account_email

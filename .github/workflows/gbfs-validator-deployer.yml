@@ -15,7 +15,7 @@
 #
 
 # Reusable workflow: builds the Docker image and deploys via Terraform.
-# Called by gbfs-validator-dev.yml, gbfs-validator-qa.yml, gbfs-validator-prod.yml.
+# Called by gbfs-validator-staging.yml and gbfs-validator-prod.yml.
 name: GBFS Validator Terraform Deployment
 
 on:
@@ -26,15 +26,11 @@ on:
         required: true
     inputs:
       ENVIRONMENT:
-        description: Deployment environment (dev, qa, prod)
+        description: Deployment environment (dev, qa, prod, or custom name)
         required: true
         type: string
       BUCKET_NAME:
         description: Full GCS bucket name for Terraform remote state
-        required: true
-        type: string
-      OBJECT_PREFIX:
-        description: GCS object prefix for Terraform remote state
         required: true
         type: string
       PROJECT_ID:
@@ -116,7 +112,6 @@ jobs:
         # run steps, so we explicitly export them here for replace-variables.sh to consume.
         run: |
           echo "BUCKET_NAME=${{ inputs.BUCKET_NAME }}" >> $GITHUB_ENV
-          echo "OBJECT_PREFIX=${{ inputs.OBJECT_PREFIX }}" >> $GITHUB_ENV
           echo "PROJECT_ID=${{ inputs.PROJECT_ID }}" >> $GITHUB_ENV
           echo "REGION=${{ inputs.REGION }}" >> $GITHUB_ENV
           echo "ENVIRONMENT=${{ inputs.ENVIRONMENT }}" >> $GITHUB_ENV
@@ -127,15 +122,14 @@ jobs:
         # CI/CD: Generates infra/backend.conf and infra/vars.tfvars from the *.rename_me
         # templates by substituting {{VARIABLE}} placeholders with environment variable
         # values. Both generated files are git-ignored and created fresh on every run.
-        # Note: backend.conf uses -no_quotes because {{BUCKET_NAME}} is embedded inside
-        # a larger string; the default quoting mode would produce an invalid mid-string
-        # quote (e.g. mobilitydata-gbfs-validator-state-"dev").
+        # ENVIRONMENT is used both as a Terraform variable and as the state prefix
+        # (e.g. dev/terraform/state), keeping each environment's state isolated.
         run: |
           scripts/replace-variables.sh \
             -in_file infra/backend.conf.rename_me \
             -out_file infra/backend.conf \
             -no_quotes \
-            -variables BUCKET_NAME,OBJECT_PREFIX
+            -variables BUCKET_NAME,ENVIRONMENT
           scripts/replace-variables.sh \
             -in_file infra/vars.tfvars.rename_me \
             -out_file infra/vars.tfvars \

@@ -32,9 +32,8 @@ jobs:
   gbfs-validator-deployment:
     uses: ./.github/workflows/gbfs-validator-deployer.yml
     with:
-      ENVIRONMENT: ${{ vars.PROD_GBFS_VALIDATOR_ENVIRONMENT }}
+      ENVIRONMENT: prod
       BUCKET_NAME: ${{ vars.PROD_GBFS_VALIDATOR_TF_STATE_BUCKET }}
-      OBJECT_PREFIX: ${{ vars.PROD_GBFS_VALIDATOR_TF_STATE_OBJECT_PREFIX }}
       PROJECT_ID: ${{ vars.PROD_GBFS_VALIDATOR_PROJECT_ID }}
       REGION: ${{ vars.GBFS_VALIDATOR_REGION }}
       DEPLOYER_SERVICE_ACCOUNT: ${{ vars.PROD_GBFS_VALIDATOR_DEPLOYER_SA }}

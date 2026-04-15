@@ -35,14 +35,14 @@ resource "google_service_account" "gbfs_validator_service_account" {
 # runtime), which allows each environment to use its own project's SA without
 # changing Terraform code. provider.tf references the variable directly for impersonation.
 module "cloud_run" {
-  source                = "./cloud-run-service"
-  environment           = var.environment
+  source                               = "./cloud-run-service"
+  environment                          = var.environment
   gbfs_validator_service_account_email = google_service_account.gbfs_validator_service_account.email
-  gbfs_api_image_version = var.gbfs_api_image_version
+  gbfs_api_image_version               = var.gbfs_api_image_version
 }
 
 module "load_balancer" {
-  source            = "./load-balancer"
-  environment           = var.environment
+  source                 = "./load-balancer"
+  environment            = var.environment
   cloud_run_service_name = module.cloud_run.cloud_run_service_name
 }
