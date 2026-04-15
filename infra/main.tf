@@ -15,6 +15,11 @@
 # limitations under the License.
 #
 
+# GCS remote state backend. Configuration is supplied via -backend-config=backend.conf at init time.
+terraform {
+  backend "gcs" {}
+}
+
 # Service account to execute the cloud functions
 resource "google_service_account" "gbfs_validator_service_account" {
   project    = var.project_id
@@ -22,12 +27,10 @@ resource "google_service_account" "gbfs_validator_service_account" {
   display_name = "GBFS Validator Service Account"
 }
 
-# Service account to deploy all resources
-data "google_service_account" "gbfs_deployer_service_account" {
-  project    = var.project_id
-  account_id = "gbfs-deployer-service-account"
-}
-
+# CI/CD: The deployer service account data source was removed. The deployer SA email
+# is now passed in via var.deployer_service_account (populated from vars.tfvars at
+# runtime), which allows each environment to use its own project's SA without
+# changing Terraform code. provider.tf references the variable directly for impersonation.
 module "cloud_run" {
   source                = "./cloud-run-service"
   environment           = var.environment

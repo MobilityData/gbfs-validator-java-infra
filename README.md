@@ -5,6 +5,44 @@ Access to any MobilityData-managed Google Cloud environment is **restricted** un
 
 ---
 
+## CI/CD Workflows
+
+Three GitHub Actions workflows deploy the GBFS Validator API to each environment:
+
+| Workflow | Trigger | Environment | Image version |
+|---|---|---|---|
+| `gbfs-validator-dev.yml` | `workflow_dispatch` | dev | `github.sha` |
+| `gbfs-validator-qa.yml` | `workflow_dispatch` / `workflow_call` | qa | `github.sha` |
+| `gbfs-validator-prod.yml` | `workflow_dispatch` / `workflow_call` | prod | `github.ref_name` (release tag) |
+
+Each env-specific workflow calls the shared reusable deployer (`gbfs-validator-deployer.yml`) which:
+1. Authenticates to GCP using the deployer service account JSON key
+2. Builds and pushes the Docker image to Artifact Registry
+3. Runs `terraform apply` to deploy the Cloud Run service
+
+### Required GitHub Actions Secrets
+
+| Secret | Description |
+|---|---|
+| `DEV_GCP_GBFS_VALIDATOR_SA_KEY` | Deployer SA JSON key for dev |
+| `QA_GCP_GBFS_VALIDATOR_SA_KEY` | Deployer SA JSON key for qa |
+| `PROD_GCP_GBFS_VALIDATOR_SA_KEY` | Deployer SA JSON key for prod |
+
+### Required GitHub Actions Variables
+
+| Variable | Example value | Description |
+|---|---|---|
+| `GBFS_VALIDATOR_REGION` | `northamerica-northeast1` | GCP region (shared) |
+| `DEV_GBFS_VALIDATOR_ENVIRONMENT` | `dev` | Environment name |
+| `DEV_GBFS_VALIDATOR_PROJECT_ID` | `gbfs-validator-dev` | GCP project ID |
+| `DEV_GBFS_VALIDATOR_TF_STATE_BUCKET` | `dev` | Environment suffix for the GCS TF state bucket (`mobilitydata-gbfs-validator-state-{suffix}`) |
+| `DEV_GBFS_VALIDATOR_TF_STATE_OBJECT_PREFIX` | `terraform/state` | GCS object prefix for TF state |
+| `DEV_GBFS_VALIDATOR_DEPLOYER_SA` | `gbfs-deployer-service-account@gbfs-validator-dev.iam.gserviceaccount.com` | Deployer SA email |
+
+Repeat the last four rows with `QA_` and `PROD_` prefixes for the other environments.
+
+---
+
 ## Setting Up a New GCP Environment
 
 > _"All roads lead to Rome!"_  
@@ -61,7 +99,7 @@ gcloud config set project gbfs-validator-staging
 ### 9. Create a Cloud Storage Bucket for Terraform State
 
 ```bash
-gcloud storage buckets create gs://mobilitydata-gbfs-validator-state-staging \
+gcloud storage buckets create gs://mobilitydata-gbfs-validator-state-dev \
   --project=gbfs-validator-staging \
   --location=northamerica-northeast1 \
   --uniform-bucket-level-access
@@ -69,42 +107,50 @@ gcloud storage buckets create gs://mobilitydata-gbfs-validator-state-staging \
 
 ### 10. Configure the Terraform Backend
 
-Copy the file `backend.conf.rename_me` and rename it to:
+Copy `infra/backend.conf.rename_me` to `infra/backend.conf` and populate it.  
+`BUCKET_NAME` is the environment-specific **suffix** — the full bucket name becomes `mobilitydata-gbfs-validator-state-{BUCKET_NAME}` (e.g. use `dev` for the dev environment).
+
+### 11. Run the Environment Setup Script
 
 ```bash
-backend-dev.conf
+scripts/setup-environment.sh gbfs-validator-staging dev
 ```
 
-Populate it with valid values matching the GCP project and bucket.
+This creates the deployer service account, grants IAM roles, enables required APIs, and sets up the Artifact Registry repository.
 
-### 11. Create the Deployer Service Account
+### 12. Generate a Deployer Service Account Key (for CI)
 
 ```bash
-gcloud iam service-accounts create gbfs-deployer-service-account \
-  --display-name="GBFS Terraform Deployer"
+gcloud iam service-accounts keys create deployer-key.json \
+  --iam-account=gbfs-deployer-service-account@gbfs-validator-staging.iam.gserviceaccount.com \
+  --project=gbfs-validator-staging
 ```
 
-### 12. Run the Environment Setup Script
+Store the contents of `deployer-key.json` as the GitHub secret `DEV_GCP_GBFS_VALIDATOR_SA_KEY`. Delete the local file after.
+
+### 13. Configure Terraform Variables
+
+Copy `infra/vars.tfvars.rename_me` to `infra/vars.tfvars` and populate it for local runs.  
+In CI, this is done automatically by `scripts/replace-variables.sh`.
+
+### 14. Initialize Terraform
 
 ```bash
-../scripts/setup-environment.sh gbfs-validator-staging dev
+cd infra
+terraform init -backend-config=backend.conf
 ```
 
-### 13. Initialize Terraform
+### 15. Build and push the GBFS API Docker image
 
 ```bash
-terraform init -backend-config=backend-dev.conf
+scripts/docker-build-validator.sh --push -version dev-$(($(date +%s)/60))
 ```
 
-### 14. Build and push the GBFS API docker
-```bash
-../scripts/docker-build-validator.sh --push -version dev-$(($(date +%s)/60))
-```
-
-### 14. Apply the Terraform Plan
+### 16. Apply the Terraform Plan
 
 ```bash
-terraform apply -var="environment=dev" -var=-"gbfs_api_image_version=<<TAG from previous step>>"
+cd infra
+terraform apply -var-file=vars.tfvars
 ```
 
 ---
@@ -113,11 +159,11 @@ terraform apply -var="environment=dev" -var=-"gbfs_api_image_version=<<TAG from 
 
 Happy coding!
 
-# Adding a new Google Cloud Service
+## Adding a new Google Cloud Service
 
-1. Locate the service list in the `.scripts/setup-environment.s` script
-2. Execute the script,
+1. Locate the service list in the `scripts/setup-environment.sh` script
+2. Execute the script:
 ```
-./scripts/setup-environment.sh gbfs-validator-staging dev
+scripts/setup-environment.sh gbfs-validator-staging dev
 ```
  

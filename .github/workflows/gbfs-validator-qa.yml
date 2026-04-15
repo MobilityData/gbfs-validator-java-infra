@@ -1,0 +1,44 @@
+#
+# MobilityData 2025
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
+# Deploys the GBFS Validator API to the QA environment.
+name: Deploy GBFS Validator - QA
+
+on:
+  workflow_dispatch:
+  workflow_call:
+    # CI/CD: The secret is declared here so callers invoking this workflow via
+    # workflow_call know what to pass. GitHub does not automatically forward repo
+    # secrets to called workflows — the caller must explicitly supply this secret.
+    # The job then remaps it to GCP_GBFS_VALIDATOR_SA_KEY when calling the deployer.
+    secrets:
+      QA_GCP_GBFS_VALIDATOR_SA_KEY:
+        required: true
+
+jobs:
+  gbfs-validator-deployment:
+    uses: ./.github/workflows/gbfs-validator-deployer.yml
+    with:
+      ENVIRONMENT: ${{ vars.QA_GBFS_VALIDATOR_ENVIRONMENT }}
+      BUCKET_NAME: ${{ vars.QA_GBFS_VALIDATOR_TF_STATE_BUCKET }}
+      OBJECT_PREFIX: ${{ vars.QA_GBFS_VALIDATOR_TF_STATE_OBJECT_PREFIX }}
+      PROJECT_ID: ${{ vars.QA_GBFS_VALIDATOR_PROJECT_ID }}
+      REGION: ${{ vars.GBFS_VALIDATOR_REGION }}
+      DEPLOYER_SERVICE_ACCOUNT: ${{ vars.QA_GBFS_VALIDATOR_DEPLOYER_SA }}
+      GBFS_API_IMAGE_VERSION: ${{ github.sha }}
+      TF_APPLY: true
+    secrets:
+      GCP_GBFS_VALIDATOR_SA_KEY: ${{ secrets.QA_GCP_GBFS_VALIDATOR_SA_KEY }}

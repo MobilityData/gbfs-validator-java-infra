@@ -63,6 +63,8 @@ variable "jar_file_name" {
 
 variable "deployer_service_account" {
   type        = string
-  description = "Service account used to deploy resources using impersonation"
-  default = "gbfs_deployer_service_account"
+  # CI/CD: No default — this must be supplied explicitly via vars.tfvars (or -var flag)
+  # so that each environment uses its own project's deployer SA. The value is the
+  # full SA email, e.g. gbfs-deployer-service-account@<project>.iam.gserviceaccount.com.
+  description = "Service account email used to deploy resources via impersonation"
 }

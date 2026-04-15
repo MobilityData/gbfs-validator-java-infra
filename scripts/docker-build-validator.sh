@@ -32,6 +32,7 @@
 #   -project_id <PROJECT_ID>      GCP project ID (default: gbfs-validator-staging)
 #   -region <REGION>              GCP region (default: northamerica-northeast1)
 #   -repo_name <REPO_NAME>        Artifact Registry Docker repo name (default: gbfs-validator)
+#   -environment <ENVIRONMENT>    Deployment environment (default: dev)
 #   -service <SERVICE>            Service name (default: gbfs_validator_api)
 #   -version <VERSION>            Image version tag (default: latest)
 #   --test                        Build and run the container locally
@@ -75,6 +76,7 @@ display_usage() {
   echo "  -project_id <PROJECT_ID>      GCP project ID (default: $PROJECT_ID)"
   echo "  -region <REGION>              GCP region (default: $REGION)"
   echo "  -repo_name <REPO_NAME>        Artifact Registry Docker repo name (default: $REPO_NAME_PREFIX)"
+  echo "  -environment <ENVIRONMENT>    Deployment environment (default: $ENVIRONMENT)"
   echo "  -service <SERVICE>            Service name (default: $SERVICE)"
   echo "  -version <VERSION>            Image version tag (default: $VERSION)"
   echo "  --test                        Build and run the container locally"
@@ -90,6 +92,10 @@ while [[ $# -gt 0 ]]; do
     -project_id) PROJECT_ID="$2"; shift 2 ;;
     -service) SERVICE="$2"; shift 2 ;;
     -repo_name) REPO_NAME_PREFIX="$2"; shift 2 ;;
+    # CI/CD: -environment controls which Artifact Registry repo the image is pushed to
+    # (gbfs-validator-dev / gbfs-validator-qa / gbfs-validator-prod). Must match the
+    # environment Terraform will deploy to, otherwise the image ref in Cloud Run won't resolve.
+    -environment) ENVIRONMENT="$2"; shift 2 ;;
     -region) REGION="$2"; shift 2 ;;
     -version) VERSION="$2"; shift 2 ;;
     --test) TEST_MODE="true"; shift ;;
