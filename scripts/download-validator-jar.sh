@@ -17,24 +17,18 @@
 #
 
 ###############################################################################
-# Download gbfs-validator-java-api fat JAR from Maven Central or Maven
-# Central Snapshots.
+# Download gbfs-validator-java-api fat JAR using Maven dependency:copy.
 #
-# If a version is specified:
-#   - SNAPSHOT versions (e.g. 2.0.68-SNAPSHOT) are downloaded from the
-#     Maven Central Snapshots repository, resolving the timestamped JAR
-#     automatically via maven-metadata.xml.
-#   - Release versions are downloaded from Maven Central.
-#
-# If no version is specified, the latest release is resolved from Maven
-# Central. Snapshots are never resolved automatically.
+# Uses the pom.xml in gbfs-validator/ which declares the Maven Central and
+# Maven Central Snapshots repositories. Maven handles version resolution,
+# checksum verification, and snapshot timestamp mapping natively.
 #
 # USAGE:
-#   ./download-validator-jar.sh [-version <VERSION>] [-output <PATH>]
+#   ./download-validator-jar.sh [-version <VERSION>]
 #
 # OPTIONS:
-#   -version <VERSION>  Specific version to download (e.g. 2.0.68 or 2.0.68-SNAPSHOT)
-#   -output <PATH>      Output file path. Default: gbfs-validator/gbfs-validator-java-api.jar
+#   -version <VERSION>  Version to download (e.g. 2.0.68 or 2.0.68-SNAPSHOT).
+#                        Omit for latest release (RELEASE).
 #   -h | --help         Show this help message
 #
 # EXAMPLES:
@@ -51,21 +45,15 @@
 
 set -euo pipefail
 
-GROUP_ID="org.mobilitydata"
-ARTIFACT_ID="gbfs-validator-java-api"
-MAVEN_SEARCH_URL="https://search.maven.org/solrsearch/select"
-MAVEN_RELEASE_URL="https://repo1.maven.org/maven2"
-MAVEN_SNAPSHOT_URL="https://central.sonatype.com/repository/maven-snapshots"
-
 SCRIPT_PATH="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-OUTPUT="${SCRIPT_PATH}/../gbfs-validator/gbfs-validator-java-api.jar"
+POM_PATH="${SCRIPT_PATH}/../gbfs-validator/pom.xml"
+OUTPUT_DIR="${SCRIPT_PATH}/../gbfs-validator"
 VERSION=""
 
 display_usage() {
-  echo "Usage: $0 [-version <VERSION>] [-output <PATH>]"
+  echo "Usage: $0 [-version <VERSION>]"
   echo "Options:"
   echo "  -version <VERSION>  Specific version (omit for latest release)"
-  echo "  -output <PATH>      Output path (default: gbfs-validator/gbfs-validator-java-api.jar)"
   echo "  -h|--help           Show this help"
   exit 1
 }
@@ -73,63 +61,42 @@ display_usage() {
 while [[ $# -gt 0 ]]; do
   case "$1" in
     -version) VERSION="$2"; shift 2 ;;
-    -output)  OUTPUT="$2"; shift 2 ;;
     -h|--help) display_usage ;;
     *) echo "Unknown option: $1"; display_usage ;;
   esac
 done
 
-GROUP_PATH="${GROUP_ID//\.//}"
+# Use RELEASE keyword if no version specified (Maven resolves to latest release)
+RESOLVED_VERSION="${VERSION:-RELEASE}"
 
-# Resolve latest version from Maven Central if not specified
-if [[ -z "$VERSION" ]]; then
-  echo "🔍 Resolving latest version of ${GROUP_ID}:${ARTIFACT_ID} from Maven Central..."
-  VERSION=$(curl -sf "${MAVEN_SEARCH_URL}?q=g:${GROUP_ID}+AND+a:${ARTIFACT_ID}&rows=1&wt=json" \
-    | python3 -c "import sys,json; docs=json.load(sys.stdin)['response']['docs']; print(docs[0]['latestVersion']) if docs else sys.exit(1)") \
-    || { echo "❌ Could not resolve latest version. Artifact ${GROUP_ID}:${ARTIFACT_ID} not found on Maven Central."; exit 1; }
-  echo "   Latest version: ${VERSION}"
-fi
+echo "⬇️  Downloading gbfs-validator-java-api ${RESOLVED_VERSION} via Maven..."
 
-# Build download URL depending on whether it's a snapshot or release
-if [[ "$VERSION" == *"-SNAPSHOT"* ]]; then
-  echo "📦 Snapshot version detected — resolving from Maven Central Snapshots..."
-  METADATA_URL="${MAVEN_SNAPSHOT_URL}/${GROUP_PATH}/${ARTIFACT_ID}/${VERSION}/maven-metadata.xml"
-  METADATA=$(curl -sf "$METADATA_URL") \
-    || { echo "❌ Snapshot metadata not found at ${METADATA_URL}"; exit 1; }
+mvn -f "$POM_PATH" dependency:copy \
+  -Dartifact.version="$RESOLVED_VERSION" \
+  -Doutput.directory="$OUTPUT_DIR" \
+  -B -ntp \
+  || { echo "❌ Maven download failed for version ${RESOLVED_VERSION}"; exit 1; }
 
-  # Extract the latest timestamped snapshot JAR filename from maven-metadata.xml
-  TIMESTAMP=$(echo "$METADATA" | python3 -c "
-import sys, xml.etree.ElementTree as ET
-root = ET.parse(sys.stdin).getroot()
-sv = root.find('.//snapshotVersion[extension=\"jar\"]')
-if sv is None:
-    sys.exit(1)
-print(sv.find('value').text)
-") || { echo "❌ Could not parse snapshot metadata for JAR"; exit 1; }
-
-  JAR_URL="${MAVEN_SNAPSHOT_URL}/${GROUP_PATH}/${ARTIFACT_ID}/${VERSION}/${ARTIFACT_ID}-${TIMESTAMP}.jar"
-else
-  JAR_URL="${MAVEN_RELEASE_URL}/${GROUP_PATH}/${ARTIFACT_ID}/${VERSION}/${ARTIFACT_ID}-${VERSION}.jar"
-fi
-
-echo "⬇️  Downloading ${ARTIFACT_ID} ${VERSION} ..."
-echo "   URL: ${JAR_URL}"
-
-HTTP_CODE=$(curl -sL -w "%{http_code}" -o "$OUTPUT" "$JAR_URL")
-
-if [[ "$HTTP_CODE" != "200" ]]; then
-  rm -f "$OUTPUT"
-  echo "❌ Download failed (HTTP ${HTTP_CODE}). Version ${VERSION} not found."
-  if [[ "$VERSION" == *"-SNAPSHOT"* ]]; then
-    echo "   Check snapshots: ${MAVEN_SNAPSHOT_URL}/${GROUP_PATH}/${ARTIFACT_ID}/"
-  else
-    echo "   Check releases: https://search.maven.org/artifact/${GROUP_ID}/${ARTIFACT_ID}"
-  fi
+JAR_FILE="${OUTPUT_DIR}/gbfs-validator-java-api.jar"
+if [[ ! -f "$JAR_FILE" ]]; then
+  echo "❌ Expected JAR not found at ${JAR_FILE}"
   exit 1
 fi
 
-FILE_SIZE=$(wc -c < "$OUTPUT" | tr -d ' ')
-echo "✅ Downloaded ${ARTIFACT_ID} ${VERSION} (${FILE_SIZE} bytes) → ${OUTPUT}"
+FILE_SIZE=$(wc -c < "$JAR_FILE" | tr -d ' ')
+echo "✅ Downloaded gbfs-validator-java-api ${RESOLVED_VERSION} (${FILE_SIZE} bytes) → ${JAR_FILE}"
 
-# Write resolved version so callers can capture it
-echo "RESOLVED_VERSION=${VERSION}"
+# Emit resolved version for CI to capture.
+# For RELEASE, extract the actual version Maven downloaded.
+if [[ "$RESOLVED_VERSION" == "RELEASE" ]]; then
+  # Maven copies with stripVersion=true, so we parse the download log isn't reliable.
+  # Instead, query what Maven actually resolved.
+  ACTUAL_VERSION=$(mvn -f "$POM_PATH" dependency:copy \
+    -Dartifact.version="RELEASE" \
+    -Doutput.directory=/dev/null \
+    -Dmdep.stripVersion=false \
+    -B -ntp -q 2>&1 | grep -oP 'gbfs-validator-java-api-\K[0-9][^.]*\.[^.]*\.[^"]*(?=\.jar)' || echo "unknown")
+  echo "RESOLVED_VERSION=${ACTUAL_VERSION}"
+else
+  echo "RESOLVED_VERSION=${RESOLVED_VERSION}"
+fi

@@ -82,20 +82,46 @@ jobs:
           username: _json_key
           password: ${{ secrets.GCP_GBFS_VALIDATOR_SA_KEY }}
 
+      - name: Set up JDK 17
+        uses: actions/setup-java@v5
+        with:
+          java-version: '17'
+          distribution: 'zulu'
+
       - name: Download validator JAR from Maven Central
         id: download_jar
-        # Downloads the fat JAR. If GBFS_API_IMAGE_VERSION is empty, resolves the
-        # latest release from Maven Central. The resolved version is captured as an
-        # output so subsequent steps can use it as the Docker image tag.
+        # Uses Maven dependency:copy via the pom in gbfs-validator/.
+        # Maven handles release/snapshot resolution, checksum verification,
+        # and snapshot timestamp mapping natively.
         run: |
-          VERSION_FLAG=""
-          if [[ -n "${{ inputs.GBFS_API_IMAGE_VERSION }}" ]]; then
-            VERSION_FLAG="-version ${{ inputs.GBFS_API_IMAGE_VERSION }}"
+          VERSION_ARG="${{ inputs.GBFS_API_IMAGE_VERSION }}"
+          RESOLVED="${VERSION_ARG:-RELEASE}"
+
+          echo "⬇️  Downloading gbfs-validator-java-api version=${RESOLVED} ..."
+
+          # First pass: download without stripVersion to capture the resolved filename
+          mvn -f gbfs-validator/pom.xml dependency:copy \
+            -Dartifact.version="$RESOLVED" \
+            -Doutput.directory=gbfs-validator/tmp-download \
+            -Dmdep.stripVersion=false \
+            -B -ntp
+
+          # Extract the actual version from the downloaded filename
+          JAR_NAME=$(ls gbfs-validator/tmp-download/gbfs-validator-java-api-*.jar 2>/dev/null | head -1)
+          if [[ -z "$JAR_NAME" ]]; then
+            echo "❌ Download failed — no JAR found"
+            exit 1
           fi
-          OUTPUT=$(scripts/download-validator-jar.sh $VERSION_FLAG)
-          echo "$OUTPUT"
-          RESOLVED=$(echo "$OUTPUT" | grep '^RESOLVED_VERSION=' | cut -d= -f2)
-          echo "resolved_version=${RESOLVED}" >> "$GITHUB_OUTPUT"
+          ACTUAL_VERSION=$(basename "$JAR_NAME" | sed 's/gbfs-validator-java-api-//;s/\.jar$//')
+          echo "   Resolved version: ${ACTUAL_VERSION}"
+
+          # Move to expected location with stripped name
+          mv "$JAR_NAME" gbfs-validator/gbfs-validator-java-api.jar
+          rm -rf gbfs-validator/tmp-download
+
+          FILE_SIZE=$(wc -c < gbfs-validator/gbfs-validator-java-api.jar | tr -d ' ')
+          echo "✅ Downloaded (${FILE_SIZE} bytes) → gbfs-validator/gbfs-validator-java-api.jar"
+          echo "resolved_version=${ACTUAL_VERSION}" >> "$GITHUB_OUTPUT"
 
       - name: Build & Push Docker Image
         # CI/CD: -environment must be passed so the image is pushed to the correct

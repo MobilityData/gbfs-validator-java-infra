@@ -42,3 +42,6 @@ terraform.rc
 # Ignore terraform local files
 backend.conf
 backend-*.conf
+
+# Maven/CI temporary download directory
+gbfs-validator/tmp-download/

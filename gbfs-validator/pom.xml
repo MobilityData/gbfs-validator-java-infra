@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  This pom exists solely to download the gbfs-validator-java-api fat JAR
+  from Maven Central (releases) or Maven Central Snapshots, using Maven's
+  native dependency resolution. It is used by CI/CD before the Docker build.
+
+  Usage:
+    Download latest release (version defined in this file):
+      mvn -f gbfs-validator/pom.xml dependency:copy -Dartifact.version=LATEST
+
+    Download a specific release:
+      mvn -f gbfs-validator/pom.xml dependency:copy -Dartifact.version=2.0.68
+
+    Download a snapshot:
+      mvn -f gbfs-validator/pom.xml dependency:copy -Dartifact.version=2.0.68-SNAPSHOT
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>org.mobilitydata.infra</groupId>
+    <artifactId>gbfs-validator-jar-downloader</artifactId>
+    <version>1.0.0</version>
+    <packaging>pom</packaging>
+
+    <description>Downloads the gbfs-validator-java-api fat JAR for Docker packaging</description>
+
+    <properties>
+        <!-- Default version to download. Override with -Dartifact.version=X -->
+        <artifact.version>RELEASE</artifact.version>
+        <artifact.groupId>org.mobilitydata</artifact.groupId>
+        <artifact.artifactId>gbfs-validator-java-api</artifact.artifactId>
+        <output.directory>${project.basedir}</output.directory>
+    </properties>
+
+    <!-- Snapshot repository for -SNAPSHOT versions -->
+    <repositories>
+        <repository>
+            <id>maven-central-snapshots</id>
+            <url>https://central.sonatype.com/repository/maven-snapshots</url>
+            <releases>
+                <enabled>false</enabled>
+            </releases>
+            <snapshots>
+                <enabled>true</enabled>
+            </snapshots>
+        </repository>
+    </repositories>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-dependency-plugin</artifactId>
+                <version>3.8.1</version>
+                <configuration>
+                    <artifact>${artifact.groupId}:${artifact.artifactId}:${artifact.version}:jar</artifact>
+                    <outputDirectory>${output.directory}</outputDirectory>
+                    <stripVersion>true</stripVersion>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+</project>
