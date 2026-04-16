@@ -59,7 +59,7 @@ import {
 
 import {
   to = module.cloud_run.google_cloud_run_service_iam_member.gbfs_validator_invoker
-  id = "projects/gbfs-validator-staging/locations/northamerica-northeast1/services/dev-gbfs-validator-api/roles/run.invoker/allUsers"
+  id = "projects/gbfs-validator-staging/locations/northamerica-northeast1/services/dev-gbfs-validator-api roles/run.invoker allUsers"
 }
 
 import {
