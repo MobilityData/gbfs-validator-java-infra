@@ -26,7 +26,7 @@ terraform {
 # both TF states would attempt to manage the same SA resource, causing conflicts on apply.
 resource "google_service_account" "gbfs_validator_service_account" {
   project      = var.project_id
-  account_id   = "gbfs-validator-service-account-${var.environment}"
+  account_id   = "gbfs-validator-sa-${var.environment}"
   display_name = "GBFS Validator Service Account (${var.environment})"
 }
 

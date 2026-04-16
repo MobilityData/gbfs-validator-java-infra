@@ -99,28 +99,27 @@ jobs:
 
           echo "⬇️  Downloading gbfs-validator-java-api version=${RESOLVED} ..."
 
-          # First pass: download without stripVersion to capture the resolved filename
+          # output.directory is relative to pom basedir (gbfs-validator/).
+          # stripVersion defaults to false, so the jar keeps its version suffix.
           mvn -f gbfs-validator/pom.xml dependency:copy \
             -Dartifact.version="$RESOLVED" \
-            -Doutput.directory=gbfs-validator/tmp-download \
-            -Dmdep.stripVersion=false \
+            -Doutput.directory=. \
+            -Dmdep.overWriteIfNewer=true \
             -B -ntp
 
-          # Extract the actual version from the downloaded filename
-          JAR_NAME=$(ls gbfs-validator/tmp-download/gbfs-validator-java-api-*.jar 2>/dev/null | head -1)
+          # Find the versioned jar and extract the actual version from its name
+          JAR_NAME=$(ls gbfs-validator/gbfs-validator-java-api-*.jar 2>/dev/null | head -1)
           if [[ -z "$JAR_NAME" ]]; then
             echo "❌ Download failed — no JAR found"
             exit 1
           fi
           ACTUAL_VERSION=$(basename "$JAR_NAME" | sed 's/gbfs-validator-java-api-//;s/\.jar$//')
-          echo "   Resolved version: ${ACTUAL_VERSION}"
 
-          # Move to expected location with stripped name
+          # Rename to fixed name expected by Dockerfile
           mv "$JAR_NAME" gbfs-validator/gbfs-validator-java-api.jar
-          rm -rf gbfs-validator/tmp-download
 
           FILE_SIZE=$(wc -c < gbfs-validator/gbfs-validator-java-api.jar | tr -d ' ')
-          echo "✅ Downloaded (${FILE_SIZE} bytes) → gbfs-validator/gbfs-validator-java-api.jar"
+          echo "✅ Downloaded ${ACTUAL_VERSION} (${FILE_SIZE} bytes)"
           echo "resolved_version=${ACTUAL_VERSION}" >> "$GITHUB_OUTPUT"
 
       - name: Build & Push Docker Image

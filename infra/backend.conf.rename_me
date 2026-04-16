@@ -32,5 +32,5 @@
 # Both are substituted at runtime by scripts/replace-variables.sh using values
 # from GitHub Actions variables.
 
-bucket      = {{BUCKET_NAME}}
-prefix      = {{ENVIRONMENT}}/terraform/state
+bucket      = "{{BUCKET_NAME}}"
+prefix      = "{{ENVIRONMENT}}/terraform/state"
