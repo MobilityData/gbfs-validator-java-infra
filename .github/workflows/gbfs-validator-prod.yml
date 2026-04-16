@@ -15,18 +15,17 @@
 #
 
 # Deploys the GBFS Validator API to the PROD environment.
+# Triggered manually. If app_version is omitted, the latest release from
+# Maven Central is downloaded automatically.
 name: Deploy GBFS Validator - PROD
 
 on:
   workflow_dispatch:
-  workflow_call:
-    # CI/CD: The secret is declared here so callers invoking this workflow via
-    # workflow_call know what to pass. GitHub does not automatically forward repo
-    # secrets to called workflows — the caller must explicitly supply this secret.
-    # The job then remaps it to GCP_GBFS_VALIDATOR_SA_KEY when calling the deployer.
-    secrets:
-      PROD_GCP_GBFS_VALIDATOR_SA_KEY:
-        required: true
+    inputs:
+      app_version:
+        description: "gbfs-validator-java version to deploy (e.g. 2.0.68). Leave empty for latest."
+        required: false
+        type: string
 
 jobs:
   gbfs-validator-deployment:
@@ -37,7 +36,7 @@ jobs:
       PROJECT_ID: ${{ vars.PROD_GBFS_VALIDATOR_PROJECT_ID }}
       REGION: ${{ vars.GBFS_VALIDATOR_REGION }}
       DEPLOYER_SERVICE_ACCOUNT: ${{ vars.PROD_GBFS_VALIDATOR_DEPLOYER_SA }}
-      GBFS_API_IMAGE_VERSION: ${{ github.ref_name }}
+      GBFS_API_IMAGE_VERSION: ${{ inputs.app_version }}
       TF_APPLY: true
     secrets:
       GCP_GBFS_VALIDATOR_SA_KEY: ${{ secrets.PROD_GCP_GBFS_VALIDATOR_SA_KEY }}

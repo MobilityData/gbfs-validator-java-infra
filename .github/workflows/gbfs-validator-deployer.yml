@@ -46,9 +46,10 @@ on:
         required: true
         type: string
       GBFS_API_IMAGE_VERSION:
-        description: Docker image version tag to build and deploy
-        required: true
+        description: Docker image version tag to build and deploy (empty = latest from Maven Central)
+        required: false
         type: string
+        default: ''
       TF_APPLY:
         description: Whether to apply Terraform changes (set false to plan-only)
         required: true
@@ -58,6 +59,8 @@ jobs:
   docker-build-publish:
     runs-on: ubuntu-latest
     permissions: write-all
+    outputs:
+      resolved_version: ${{ steps.download_jar.outputs.resolved_version }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -79,6 +82,21 @@ jobs:
           username: _json_key
           password: ${{ secrets.GCP_GBFS_VALIDATOR_SA_KEY }}
 
+      - name: Download validator JAR from Maven Central
+        id: download_jar
+        # Downloads the fat JAR. If GBFS_API_IMAGE_VERSION is empty, resolves the
+        # latest release from Maven Central. The resolved version is captured as an
+        # output so subsequent steps can use it as the Docker image tag.
+        run: |
+          VERSION_FLAG=""
+          if [[ -n "${{ inputs.GBFS_API_IMAGE_VERSION }}" ]]; then
+            VERSION_FLAG="-version ${{ inputs.GBFS_API_IMAGE_VERSION }}"
+          fi
+          OUTPUT=$(scripts/download-validator-jar.sh $VERSION_FLAG)
+          echo "$OUTPUT"
+          RESOLVED=$(echo "$OUTPUT" | grep '^RESOLVED_VERSION=' | cut -d= -f2)
+          echo "resolved_version=${RESOLVED}" >> "$GITHUB_OUTPUT"
+
       - name: Build & Push Docker Image
         # CI/CD: -environment must be passed so the image is pushed to the correct
         # Artifact Registry repo (gbfs-validator-{env}). Terraform resolves the image
@@ -89,7 +107,7 @@ jobs:
             -project_id ${{ inputs.PROJECT_ID }} \
             -region ${{ inputs.REGION }} \
             -environment ${{ inputs.ENVIRONMENT }} \
-            -version ${{ inputs.GBFS_API_IMAGE_VERSION }}
+            -version ${{ steps.download_jar.outputs.resolved_version }}
 
   terraform-deploy:
     runs-on: ubuntu-latest
@@ -116,7 +134,7 @@ jobs:
           echo "REGION=${{ inputs.REGION }}" >> $GITHUB_ENV
           echo "ENVIRONMENT=${{ inputs.ENVIRONMENT }}" >> $GITHUB_ENV
           echo "DEPLOYER_SERVICE_ACCOUNT=${{ inputs.DEPLOYER_SERVICE_ACCOUNT }}" >> $GITHUB_ENV
-          echo "GBFS_API_IMAGE_VERSION=${{ inputs.GBFS_API_IMAGE_VERSION }}" >> $GITHUB_ENV
+          echo "GBFS_API_IMAGE_VERSION=${{ needs.docker-build-publish.outputs.resolved_version }}" >> $GITHUB_ENV
 
       - name: Populate Terraform Variables
         # CI/CD: Generates infra/backend.conf and infra/vars.tfvars from the *.rename_me

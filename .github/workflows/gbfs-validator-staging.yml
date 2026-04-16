@@ -31,13 +31,20 @@ on:
   workflow_dispatch:
     inputs:
       target_environment:
-        description: "Environment name (e.g. dev, qa, jc)"
+        description: "Environment name (e.g. dev, qa, or other)"
         required: true
+        type: string
+      app_version:
+        description: "Version to deploy (e.g. 2.0.68-SNAPSHOT or 2.0.68). Leave empty for latest release."
+        required: false
         type: string
 
 jobs:
-  # Resolves the environment name from the trigger context.
-  # Subsequent jobs reference this output to stay DRY.
+  # Resolves the environment name from the trigger context
+  # Mapping:
+  #   pull_request     → "dev"   (feature-branch validation)
+  #   push to main     → "qa"    (post-merge integration)
+  #   workflow_dispatch → value entered by the user (e.g. "jc", "dev", "qa")
   resolve-environment:
     runs-on: ubuntu-latest
     outputs:
@@ -63,7 +70,7 @@ jobs:
       PROJECT_ID: ${{ vars.STAGING_GBFS_VALIDATOR_PROJECT_ID }}
       REGION: ${{ vars.GBFS_VALIDATOR_REGION }}
       DEPLOYER_SERVICE_ACCOUNT: ${{ vars.STAGING_GBFS_VALIDATOR_DEPLOYER_SA }}
-      GBFS_API_IMAGE_VERSION: ${{ github.sha }}
+      GBFS_API_IMAGE_VERSION: ${{ inputs.app_version }}
       TF_APPLY: true
     secrets:
       GCP_GBFS_VALIDATOR_SA_KEY: ${{ secrets.STAGING_GCP_GBFS_VALIDATOR_SA_KEY }}
