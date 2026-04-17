@@ -39,6 +39,7 @@ module "cloud_run" {
   environment                          = var.environment
   gbfs_validator_service_account_email = google_service_account.gbfs_validator_service_account.email
   gbfs_api_image_version               = var.gbfs_api_image_version
+  artifact_registry_repo               = var.artifact_registry_repo
 }
 
 module "load_balancer" {

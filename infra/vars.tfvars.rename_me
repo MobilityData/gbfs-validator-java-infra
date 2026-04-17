@@ -26,3 +26,4 @@ gcp_region               = {{REGION}}
 environment              = {{ENVIRONMENT}}
 gbfs_api_image_version   = {{GBFS_API_IMAGE_VERSION}}
 deployer_service_account = {{DEPLOYER_SERVICE_ACCOUNT}}
+artifact_registry_repo   = {{ARTIFACT_REGISTRY_REPO}}

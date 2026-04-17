@@ -68,3 +68,9 @@ variable "deployer_service_account" {
   # full SA email, e.g. gbfs-deployer-service-account@<project>.iam.gserviceaccount.com.
   description = "Service account email used to deploy resources via impersonation"
 }
+
+variable "artifact_registry_repo" {
+  type        = string
+  description = "Artifact Registry repository name shared across staging environments (e.g. gbfs-validator-staging)"
+  default     = "gbfs-validator-staging"
+}

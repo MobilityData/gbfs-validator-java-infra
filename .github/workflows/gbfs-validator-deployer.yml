@@ -45,6 +45,10 @@ on:
         description: Service account email used by Terraform for impersonation
         required: true
         type: string
+      ARTIFACT_REGISTRY_REPO:
+        description: Artifact Registry repository name (e.g. gbfs-validator-staging)
+        required: true
+        type: string
       GBFS_API_IMAGE_VERSION:
         description: Docker image version tag to build and deploy (empty = latest from Maven Central)
         required: false
@@ -122,15 +126,31 @@ jobs:
           echo "✅ Downloaded ${ACTUAL_VERSION} (${FILE_SIZE} bytes)"
           echo "resolved_version=${ACTUAL_VERSION}" >> "$GITHUB_OUTPUT"
 
+      - name: Create Artifact Registry repo if not exists
+        run: |
+          REPO="${{ inputs.ARTIFACT_REGISTRY_REPO }}"
+          if ! gcloud artifacts repositories describe "$REPO" \
+              --project="${{ inputs.PROJECT_ID }}" \
+              --location="${{ inputs.REGION }}" &>/dev/null; then
+            echo "Creating Artifact Registry repo: $REPO"
+            gcloud artifacts repositories create "$REPO" \
+              --repository-format=docker \
+              --location="${{ inputs.REGION }}" \
+              --project="${{ inputs.PROJECT_ID }}" \
+              --description="GBFS Validator Docker images"
+          else
+            echo "Repo $REPO already exists, skipping."
+          fi
+
       - name: Build & Push Docker Image
-        # CI/CD: -environment must be passed so the image is pushed to the correct
-        # Artifact Registry repo (gbfs-validator-{env}). Terraform resolves the image
-        # from that same repo, so a mismatch would cause Cloud Run deployment to fail.
+        # CI/CD: -repo_name sets the shared Artifact Registry repo; -environment is used
+        # as a subdirectory within it. Both must match what Terraform expects for Cloud Run.
         run: |
           scripts/docker-build-validator.sh \
             --push \
             -project_id ${{ inputs.PROJECT_ID }} \
             -region ${{ inputs.REGION }} \
+            -repo_name ${{ inputs.ARTIFACT_REGISTRY_REPO }} \
             -environment ${{ inputs.ENVIRONMENT }} \
             -version ${{ steps.download_jar.outputs.resolved_version }}
 
@@ -160,6 +180,7 @@ jobs:
           echo "ENVIRONMENT=${{ inputs.ENVIRONMENT }}" >> $GITHUB_ENV
           echo "DEPLOYER_SERVICE_ACCOUNT=${{ inputs.DEPLOYER_SERVICE_ACCOUNT }}" >> $GITHUB_ENV
           echo "GBFS_API_IMAGE_VERSION=${{ needs.docker-build-publish.outputs.resolved_version }}" >> $GITHUB_ENV
+          echo "ARTIFACT_REGISTRY_REPO=${{ inputs.ARTIFACT_REGISTRY_REPO }}" >> $GITHUB_ENV
 
       - name: Populate Terraform Variables
         # CI/CD: Generates infra/backend.conf and infra/vars.tfvars from the *.rename_me
@@ -176,7 +197,7 @@ jobs:
           scripts/replace-variables.sh \
             -in_file infra/vars.tfvars.rename_me \
             -out_file infra/vars.tfvars \
-            -variables PROJECT_ID,REGION,ENVIRONMENT,DEPLOYER_SERVICE_ACCOUNT,GBFS_API_IMAGE_VERSION
+            -variables PROJECT_ID,REGION,ENVIRONMENT,DEPLOYER_SERVICE_ACCOUNT,GBFS_API_IMAGE_VERSION,ARTIFACT_REGISTRY_REPO
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3

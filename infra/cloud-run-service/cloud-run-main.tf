@@ -29,7 +29,7 @@ terraform {
 
 locals {
   gbfs_validator_config  = jsondecode(file("${path.module}/../../gbfs-validator/function_config.json"))
-  artifact_registry_repo = "gbfs-validator-${var.environment}"
+  artifact_registry_repo = "${var.artifact_registry_repo}/${var.environment}"
 }
 
 provider "google" {

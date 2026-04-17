@@ -37,6 +37,7 @@ jobs:
       REGION: ${{ vars.GBFS_VALIDATOR_REGION }}
       DEPLOYER_SERVICE_ACCOUNT: ${{ vars.PROD_GBFS_VALIDATOR_DEPLOYER_SA }}
       GBFS_API_IMAGE_VERSION: ${{ inputs.app_version }}
+      ARTIFACT_REGISTRY_REPO: gbfs-validator
       TF_APPLY: true
     secrets:
       GCP_GBFS_VALIDATOR_SA_KEY: ${{ secrets.PROD_GCP_GBFS_VALIDATOR_SA_KEY }}

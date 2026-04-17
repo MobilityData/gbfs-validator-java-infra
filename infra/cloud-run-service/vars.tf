@@ -64,3 +64,9 @@ variable "gbfs_validator_service_account_email" {
   type        = string
   description = "Service account use for runtime operations"
 }
+
+variable "artifact_registry_repo" {
+  type        = string
+  description = "Artifact Registry repository name (e.g. gbfs-validator-staging)"
+  default     = "gbfs-validator-staging"
+}

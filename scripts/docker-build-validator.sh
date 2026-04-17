@@ -92,9 +92,9 @@ while [[ $# -gt 0 ]]; do
     -project_id) PROJECT_ID="$2"; shift 2 ;;
     -service) SERVICE="$2"; shift 2 ;;
     -repo_name) REPO_NAME_PREFIX="$2"; shift 2 ;;
-    # CI/CD: -environment controls which Artifact Registry repo the image is pushed to
-    # (gbfs-validator-dev / gbfs-validator-qa / gbfs-validator-prod). Must match the
-    # environment Terraform will deploy to, otherwise the image ref in Cloud Run won't resolve.
+    # CI/CD: -environment is used as a subdirectory within the shared Artifact Registry repo
+    # (e.g. gbfs-validator-staging/dev/). Must match the environment Terraform will deploy to,
+    # otherwise the image ref in Cloud Run won't resolve.
     -environment) ENVIRONMENT="$2"; shift 2 ;;
     -region) REGION="$2"; shift 2 ;;
     -version) VERSION="$2"; shift 2 ;;
@@ -110,7 +110,7 @@ done
 SCRIPT_PATH="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 JAR_PATH="$SCRIPT_PATH/../gbfs-validator/gbfs-validator-java-api.jar"
 DOCKERFILE="$SCRIPT_PATH/../gbfs-validator/Dockerfile"
-IMAGE="${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPO_NAME_PREFIX}-${ENVIRONMENT}/${SERVICE}:${VERSION}"
+IMAGE="${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPO_NAME_PREFIX}/${ENVIRONMENT}/${SERVICE}:${VERSION}"
 LOCAL_TAG="${SERVICE}:local"
 
 # === Validation ===

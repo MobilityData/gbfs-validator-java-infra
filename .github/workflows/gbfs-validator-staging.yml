@@ -60,6 +60,7 @@ jobs:
           else
             echo "environment=${{ inputs.target_environment }}" >> $GITHUB_OUTPUT
           fi
+          echo "Resolved environment: $(grep '^environment=' $GITHUB_OUTPUT | cut -d= -f2)"
 
   deploy:
     needs: resolve-environment
@@ -71,6 +72,7 @@ jobs:
       REGION: ${{ vars.GBFS_VALIDATOR_REGION }}
       DEPLOYER_SERVICE_ACCOUNT: ${{ vars.STAGING_GBFS_VALIDATOR_DEPLOYER_SA }}
       GBFS_API_IMAGE_VERSION: ${{ inputs.app_version }}
+      ARTIFACT_REGISTRY_REPO: gbfs-validator-staging
       TF_APPLY: true
     secrets:
       GCP_GBFS_VALIDATOR_SA_KEY: ${{ secrets.STAGING_GCP_GBFS_VALIDATOR_SA_KEY }}
