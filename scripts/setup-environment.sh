@@ -225,3 +225,53 @@ for SERVICE in "${REQUIRED_SERVICES[@]}"; do
 done
 
 echo "🎉 Setup complete for project $PROJECT_ID"
+
+# === Global LB IP addresses ===
+IPV4_NAME="${ENVIRONMENT}-lb-ipv4"
+IPV6_NAME="${ENVIRONMENT}-lb-ipv6"
+
+if gcloud compute addresses describe "${IPV4_NAME}" --project="${PROJECT_ID}" --global &>/dev/null; then
+  IPV4=$(gcloud compute addresses describe "${IPV4_NAME}" --project="${PROJECT_ID}" --global --format="value(address)")
+  echo "✅ IPv4 already exists: ${IPV4_NAME} → ${IPV4}"
+else
+  echo "➕ Creating global IPv4: ${IPV4_NAME} ..."
+  gcloud compute addresses create "${IPV4_NAME}" --project="${PROJECT_ID}" --ip-version=IPV4 --global
+  IPV4=$(gcloud compute addresses describe "${IPV4_NAME}" --project="${PROJECT_ID}" --global --format="value(address)")
+  echo "✅ Created: ${IPV4_NAME} → ${IPV4}"
+fi
+
+if gcloud compute addresses describe "${IPV6_NAME}" --project="${PROJECT_ID}" --global &>/dev/null; then
+  IPV6=$(gcloud compute addresses describe "${IPV6_NAME}" --project="${PROJECT_ID}" --global --format="value(address)")
+  echo "✅ IPv6 already exists: ${IPV6_NAME} → ${IPV6}"
+else
+  echo "➕ Creating global IPv6: ${IPV6_NAME} ..."
+  gcloud compute addresses create "${IPV6_NAME}" --project="${PROJECT_ID}" --ip-version=IPV6 --global
+  IPV6=$(gcloud compute addresses describe "${IPV6_NAME}" --project="${PROJECT_ID}" --global --format="value(address)")
+  echo "✅ Created: ${IPV6_NAME} → ${IPV6}"
+fi
+
+# === Google-managed SSL certificate ===
+DOMAIN="${ENVIRONMENT}.gbfs.api.mobilitydatabase.org"
+CERT_NAME="${ENVIRONMENT}-gbfs-api-mobilitydatabase-org"
+
+if gcloud compute ssl-certificates describe "${CERT_NAME}" --project="${PROJECT_ID}" --global &>/dev/null; then
+  echo "✅ SSL certificate already exists: ${CERT_NAME}"
+else
+  echo "➕ Creating Google-managed SSL certificate: ${CERT_NAME} ..."
+  gcloud compute ssl-certificates create "${CERT_NAME}" \
+    --project="${PROJECT_ID}" \
+    --domains="${DOMAIN}" \
+    --global
+  echo "✅ Created: ${CERT_NAME} (provisioning pending DNS)"
+fi
+
+echo ""
+echo "=========================================="
+echo "  ✅ Bootstrap complete for: ${ENVIRONMENT}"
+echo ""
+echo "  Next: create DNS records for ${DOMAIN}:"
+echo "    A    ${IPV4}"
+echo "    AAAA ${IPV6}"
+echo ""
+echo "  SSL cert provisions automatically once DNS resolves."
+echo "=========================================="

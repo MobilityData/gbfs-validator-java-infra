@@ -232,3 +232,20 @@ jobs:
           terraform apply -auto-approve tf.plan
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Print API endpoint
+        if: ${{ inputs.TF_APPLY }}
+        run: |
+          IPV4=$(gcloud compute forwarding-rules list \
+            --project="${{ inputs.PROJECT_ID }}" \
+            --filter="name~^${{ inputs.ENVIRONMENT }}-" \
+            --format="value(IPAddress)" | grep -v ':' | head -1)
+          echo ""
+          echo "=========================================="
+          echo "  ✅ ${{ inputs.ENVIRONMENT }} environment deployed"
+          echo "  🌐 LB IPv4: ${IPV4}"
+          echo "  🔗 Test: curl -sk -H 'Host: ${{ inputs.ENVIRONMENT }}-gbfs-api.mobilitydatabase.org' \\"
+          echo "       https://${IPV4}/validate \\"
+          echo "       -H 'Content-Type: application/json' \\"
+          echo "       -d '{\"feedUrl\": \"https://gbfs.velobixi.com/gbfs/gbfs.json\"}'"
+          echo "=========================================="
