@@ -236,16 +236,12 @@ jobs:
       - name: Print API endpoint
         if: ${{ inputs.TF_APPLY }}
         run: |
-          IPV4=$(gcloud compute forwarding-rules list \
-            --project="${{ inputs.PROJECT_ID }}" \
-            --filter="name~^${{ inputs.ENVIRONMENT }}-" \
-            --format="value(IPAddress)" | grep -v ':' | head -1)
+          cd infra
+          IPV4=$(terraform output -raw lb_ipv4)
           echo ""
           echo "=========================================="
           echo "  ✅ ${{ inputs.ENVIRONMENT }} environment deployed"
-          echo "  🌐 LB IPv4: ${IPV4}"
-          echo "  🔗 Test: curl -sk -H 'Host: ${{ inputs.ENVIRONMENT }}-gbfs-api.mobilitydatabase.org' \\"
-          echo "       https://${IPV4}/validate \\"
-          echo "       -H 'Content-Type: application/json' \\"
-          echo "       -d '{\"feedUrl\": \"https://gbfs.velobixi.com/gbfs/gbfs.json\"}'"
+          echo "  🌐 LB IPv4: ${IPV4//./ .}"
+          echo "  🔗 Test endpoint: https://<ipv4>/validate"
+          echo "       Host header: ${{ inputs.ENVIRONMENT }}.gbfs.api.mobilitydatabase.org"
           echo "=========================================="
