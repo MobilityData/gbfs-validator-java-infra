@@ -154,7 +154,7 @@ jobs:
             -environment ${{ inputs.ENVIRONMENT }} \
             -version ${{ steps.download_jar.outputs.resolved_version }}
 
-    terraform-deploy:
+  terraform-deploy:
     runs-on: ubuntu-latest
     permissions: write-all
     needs: docker-build-publish
