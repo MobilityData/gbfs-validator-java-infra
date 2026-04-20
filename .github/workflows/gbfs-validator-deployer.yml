@@ -154,7 +154,7 @@ jobs:
             -environment ${{ inputs.ENVIRONMENT }} \
             -version ${{ steps.download_jar.outputs.resolved_version }}
 
-  terraform-deploy:
+    terraform-deploy:
     runs-on: ubuntu-latest
     permissions: write-all
     needs: docker-build-publish
@@ -236,12 +236,8 @@ jobs:
       - name: Print API endpoint
         if: ${{ inputs.TF_APPLY }}
         run: |
-          cd infra
-          IPV4=$(terraform output -raw lb_ipv4)
           echo ""
           echo "=========================================="
           echo "  ✅ ${{ inputs.ENVIRONMENT }} environment deployed"
-          echo "  🌐 LB IPv4: ${IPV4//./ .}"
-          echo "  🔗 Test endpoint: https://<ipv4>/validate"
-          echo "       Host header: ${{ inputs.ENVIRONMENT }}.gbfs.api.mobilitydatabase.org"
+          echo "  🔗 https://${{ inputs.ENVIRONMENT }}.gbfs.api.mobilitydatabase.org/validate"
           echo "=========================================="
