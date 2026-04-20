@@ -46,14 +46,19 @@
 # - IAM Policy Binding for deployer to impersonate gbfs-validator-service-account
 #
 # Usage:
-#   ./bootstrap.sh <GCP_PROJECT_ID> <ENVIRONMENT> [<REGION>]
+#   ./setup-environment.sh <GCP_PROJECT_ID> <ENVIRONMENT> [<REGION>] [<ARTIFACT_REGISTRY_REPO>]
 #
-#   GCP_PROJECT_ID   - Required. Your Google Cloud project ID.
-#   ENVIRONMENT      - Required. Deployment environment (e.g., dev, qa, prod).
-#   REGION           - Optional. GCP region (default: northamerica-northeast1).
+#   GCP_PROJECT_ID          - Required. Your Google Cloud project ID.
+#   ENVIRONMENT             - Required. Deployment environment (e.g., dev, qa, prod).
+#   REGION                  - Optional. GCP region (default: northamerica-northeast1).
+#   ARTIFACT_REGISTRY_REPO  - Optional. Shared AR repo name (default: gbfs-validator-staging).
+#                             Use "gbfs-validator" for prod.
 #
-# Example:
-#   ./bootstrap.sh gbfs-validator-dev dev
+# Example (staging):
+#   ./setup-environment.sh gbfs-validator-staging qa
+#
+# Example (prod):
+#   ./setup-environment.sh gbfs-validator prod northamerica-northeast1 gbfs-validator
 #
 # Notes:
 # - Requires `gcloud` CLI installed and authenticated.
@@ -67,7 +72,7 @@ set -euo pipefail
 PROJECT_ID="${1:?Usage: $0 <GCP_PROJECT_ID>}"
 ENVIRONMENT="${2:?Usage: $0 <ENVIRONMENT>}"
 REGION="${3:-northamerica-northeast1}"  # Default to Montréal
-REPO_NAME="gbfs-validator-$ENVIRONMENT"
+REPO_NAME="${4:-gbfs-validator-staging}"  # Shared repo; use "gbfs-validator" for prod
 LOCAL_USER_EMAIL=$(gcloud config get-value account)
 PROJECT_NUMBER=$(gcloud projects describe "$PROJECT_ID" --format="value(projectNumber)")
 
@@ -112,17 +117,24 @@ done
 # === Impersonation for local user ===
 echo "👤 Allowing local user $LOCAL_USER_EMAIL to impersonate $DEPLOYER_SA"
 gcloud iam service-accounts add-iam-policy-binding "$DEPLOYER_SA" \
+  --project="$PROJECT_ID" \
   --member="user:${LOCAL_USER_EMAIL}" \
   --role="roles/iam.serviceAccountTokenCreator" || echo "⚠️ Already allowed or failed"
 
 # === Allow deployer to impersonate the validator service account ===
+# Note: gbfs-validator-service-account is created by Terraform on first deploy.
+# This binding is applied only if that SA already exists.
 VALIDATOR_SA="gbfs-validator-service-account@${PROJECT_ID}.iam.gserviceaccount.com"
-echo "🔐 Granting 'iam.serviceAccountUser' to $DEPLOYER_SA on $VALIDATOR_SA"
-
-gcloud iam service-accounts add-iam-policy-binding "$VALIDATOR_SA" \
-  --member="serviceAccount:${DEPLOYER_SA}" \
-  --role="roles/iam.serviceAccountUser" \
-  --project="$PROJECT_ID"
+if gcloud iam service-accounts describe "$VALIDATOR_SA" --project="$PROJECT_ID" &>/dev/null; then
+  echo "🔐 Granting 'iam.serviceAccountUser' to $DEPLOYER_SA on $VALIDATOR_SA"
+  gcloud iam service-accounts add-iam-policy-binding "$VALIDATOR_SA" \
+    --member="serviceAccount:${DEPLOYER_SA}" \
+    --role="roles/iam.serviceAccountUser" \
+    --project="$PROJECT_ID"
+else
+  echo "⚠️  $VALIDATOR_SA does not exist yet — Terraform will create it on first deploy."
+  echo "    Re-run this script after the first successful deployment to apply this binding."
+fi
 
 # === Enable Artifact Registry API ===
 echo "🛰️  Enabling Artifact Registry API..."
@@ -251,7 +263,12 @@ else
 fi
 
 # === Google-managed SSL certificate ===
-DOMAIN="${ENVIRONMENT}.gbfs.api.mobilitydatabase.org"
+# Prod uses the bare domain; all other envs use {env}.domain
+if [[ "${ENVIRONMENT}" == "prod" ]]; then
+  DOMAIN="gbfs.api.mobilitydatabase.org"
+else
+  DOMAIN="${ENVIRONMENT}.gbfs.api.mobilitydatabase.org"
+fi
 CERT_NAME="${ENVIRONMENT}-gbfs-api-mobilitydatabase-org"
 
 if gcloud compute ssl-certificates describe "${CERT_NAME}" --project="${PROJECT_ID}" --global &>/dev/null; then

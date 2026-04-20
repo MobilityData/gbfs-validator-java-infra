@@ -239,5 +239,9 @@ jobs:
           echo ""
           echo "=========================================="
           echo "  ✅ ${{ inputs.ENVIRONMENT }} environment deployed"
-          echo "  🔗 https://${{ inputs.ENVIRONMENT }}.gbfs.api.mobilitydatabase.org/validate"
+          if [[ "${{ inputs.ENVIRONMENT }}" == "prod" ]]; then
+            echo "  🔗 https://gbfs.api.mobilitydatabase.org/validate"
+          else
+            echo "  🔗 https://${{ inputs.ENVIRONMENT }}.gbfs.api.mobilitydatabase.org/validate"
+          fi
           echo "=========================================="

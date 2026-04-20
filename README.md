@@ -99,7 +99,8 @@ These credentials will be passed as Terraform variables.
 
 ### 5. Create SSL Certificates
 
-Configure Google-managed or self-managed certificates for the HTTPS Load Balancer.
+Google-managed SSL certificates are created automatically by `scripts/setup-environment.sh` (step 11 below).  
+They provision once the DNS A/AAAA records are in place and the load balancer is deployed.
 
 ### 6. Enable and Configure Identity Platform
 
@@ -120,7 +121,7 @@ gcloud config set project gbfs-validator-staging
 ### 9. Create a Cloud Storage Bucket for Terraform State
 
 ```bash
-gcloud storage buckets create gs://mobilitydata-gbfs-validator-state-dev \
+gcloud storage buckets create gs://mobilitydata-gbfs-validator-state-staging \
   --project=gbfs-validator-staging \
   --location=northamerica-northeast1 \
   --uniform-bucket-level-access
@@ -135,10 +136,33 @@ Copy `infra/backend.conf.rename_me` to `infra/backend.conf` and populate it.
 ### 11. Run the Environment Setup Script
 
 ```bash
+# Staging (dev, qa, or custom):
 scripts/setup-environment.sh gbfs-validator-staging dev
+
+# Prod (uses a separate AR repo):
+scripts/setup-environment.sh gbfs-validator prod northamerica-northeast1 gbfs-validator
 ```
 
-This creates the deployer service account, grants IAM roles, enables required APIs, and sets up the Artifact Registry repository.
+This script:
+- Creates the deployer service account and grants IAM roles
+- Enables required Google APIs
+- Creates (or verifies) the shared Artifact Registry repository
+- Creates global static IPv4 and IPv6 addresses for the load balancer (`{env}-lb-ipv4`, `{env}-lb-ipv6`)
+- Creates a Google-managed SSL certificate for `{env}.gbfs.api.mobilitydatabase.org`
+
+At the end it prints the IP addresses you will need for DNS.
+
+### 11a. Create DNS Records
+
+After running the setup script, ask your DNS administrator (Cloudflare) to create:
+
+| Type | Name | Value |
+|---|---|---|
+| `A` | `{env}.gbfs.api.mobilitydatabase.org` | IPv4 printed by the script |
+| `AAAA` | `{env}.gbfs.api.mobilitydatabase.org` | IPv6 printed by the script |
+
+> **Note:** DNS proxy must be **disabled** (grey cloud in Cloudflare) to allow Google-managed cert provisioning.  
+> The SSL certificate will complete provisioning automatically once DNS resolves to the load balancer IP.
 
 ### 12. Generate a Deployer Service Account Key (for CI)
 
