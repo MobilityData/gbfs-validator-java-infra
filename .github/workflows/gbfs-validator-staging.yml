@@ -31,9 +31,12 @@ on:
   workflow_dispatch:
     inputs:
       target_environment:
-        description: "Environment name (e.g. dev, qa, or other)"
-        required: true
-        type: string
+        description: "Environment to deploy to"
+        type: choice
+        default: dev
+        options:
+          - dev
+          - qa
       app_version:
         description: "Version to deploy (e.g. 2.0.68-SNAPSHOT or 2.0.68). Leave empty for latest release."
         required: false
