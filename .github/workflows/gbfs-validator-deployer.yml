@@ -26,7 +26,7 @@ on:
         required: true
     inputs:
       ENVIRONMENT:
-        description: Deployment environment (dev, qa, prod, or custom name)
+        description: Deployment environment (dev, qa, or prod)
         required: true
         type: string
       BUCKET_NAME:
@@ -78,8 +78,7 @@ jobs:
         uses: google-github-actions/setup-gcloud@v2
 
       - name: Login to Google Artifact Registry
-        # CI/CD: Use _json_key (not _json_key_base64) because the secret stores raw JSON,
-        # not base64-encoded JSON. Using the wrong type causes a silent auth failure.
+        # Use _json_key (not _json_key_base64) because the secret stores raw JSON.
         uses: docker/login-action@v3
         with:
           registry: ${{ inputs.REGION }}-docker.pkg.dev
@@ -143,8 +142,7 @@ jobs:
           fi
 
       - name: Build & Push Docker Image
-        # CI/CD: -repo_name sets the shared Artifact Registry repo; -environment is used
-        # as a subdirectory within it. Both must match what Terraform expects for Cloud Run.
+        # -repo_name is the shared AR repo; -environment is the subdirectory within it.
         run: |
           scripts/docker-build-validator.sh \
             --push \
@@ -171,8 +169,7 @@ jobs:
         uses: google-github-actions/setup-gcloud@v2
 
       - name: Set Variables
-        # CI/CD: Workflow inputs are not directly available as env vars in subsequent
-        # run steps, so we explicitly export them here for replace-variables.sh to consume.
+        # Export workflow inputs as env vars for replace-variables.sh.
         run: |
           echo "BUCKET_NAME=${{ inputs.BUCKET_NAME }}" >> $GITHUB_ENV
           echo "PROJECT_ID=${{ inputs.PROJECT_ID }}" >> $GITHUB_ENV
@@ -183,11 +180,8 @@ jobs:
           echo "ARTIFACT_REGISTRY_REPO=${{ inputs.ARTIFACT_REGISTRY_REPO }}" >> $GITHUB_ENV
 
       - name: Populate Terraform Variables
-        # CI/CD: Generates infra/backend.conf and infra/vars.tfvars from the *.rename_me
-        # templates by substituting {{VARIABLE}} placeholders with environment variable
-        # values. Both generated files are git-ignored and created fresh on every run.
-        # ENVIRONMENT is used both as a Terraform variable and as the state prefix
-        # (e.g. dev/terraform/state), keeping each environment's state isolated.
+        # Generates backend.conf and vars.tfvars from *.rename_me templates by
+        # substituting {{VARIABLE}} placeholders with env var values.
         run: |
           scripts/replace-variables.sh \
             -in_file infra/backend.conf.rename_me \

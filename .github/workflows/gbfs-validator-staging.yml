@@ -18,7 +18,7 @@
 # Environment is resolved from the trigger:
 #   - pull_request     → dev
 #   - push to main     → qa
-#   - workflow_dispatch → user-specified (freeform, e.g. "jc", "dev", "qa")
+#   - workflow_dispatch → user-specified (dev or qa)
 # All staging environments share the same GCP project, SA key, and TF state bucket.
 # Each environment gets its own state prefix and uniquely-named GCP resources.
 name: Deploy GBFS Validator - Staging
@@ -47,7 +47,7 @@ jobs:
   # Mapping:
   #   pull_request     → "dev"   (feature-branch validation)
   #   push to main     → "qa"    (post-merge integration)
-  #   workflow_dispatch → value entered by the user (e.g. "jc", "dev", "qa")
+  #   workflow_dispatch → value chosen by the user (dev or qa)
   resolve-environment:
     runs-on: ubuntu-latest
     outputs:
