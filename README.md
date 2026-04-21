@@ -9,57 +9,31 @@ Access to any MobilityData-managed Google Cloud environment is **restricted** un
 
 Deployments are fully automated via GitHub Actions. There is nothing to build or compile manually — the CI pipeline handles everything.
 
-| Environment | Trigger | URL |
-|---|---|---|
-| `dev` | Open or update a pull request | `https://dev.gbfs.api.mobilitydatabase.org/validate` |
-| `qa` | Merge (push) to `main` | `https://qa.gbfs.api.mobilitydatabase.org/validate` |
-| `dev` or `qa` | Manual (`workflow_dispatch` on `gbfs-validator-staging.yml`) | see above |
-| `prod` | Manual (`workflow_dispatch` on `gbfs-validator-prod.yml`) | `https://gbfs.api.mobilitydatabase.org/validate` |
+| Environment | GCP Project | Trigger | URL |
+|---|---|---|---|
+| `dev` | `gbfs-validator-staging` | PR opened/updated, or manual (see below) | `https://dev.gbfs.api.mobilitydatabase.org/validate` |
+| `qa` | `gbfs-validator-staging` | Push to `main`, or manual (see below) | `https://qa.gbfs.api.mobilitydatabase.org/validate` |
+| `prod` | `gbfs-validator-prod` | Manual only (see below) | `https://gbfs.api.mobilitydatabase.org/validate` |
+
+> **Note:** `dev` and `qa` share the same GCP project (`gbfs-validator-staging`). Each environment gets its own Cloud Run service, Artifact Registry path, runtime service account, and Terraform state. `prod` lives in a separate dedicated project.
 
 ### Manual deployment
 
-The staging and prod workflows can also be triggered manually from the [GitHub Actions UI](https://github.com/MobilityData/gbfs-validator-java-infra/actions).
+The staging and prod workflows can be triggered manually from the [GitHub Actions UI](https://github.com/MobilityData/gbfs-validator-java-infra/actions).
 
 **Staging** (`gbfs-validator-staging.yml`):
-- `target_environment` — required, choose `dev` or `qa`
+- `target_environment` — choose `dev` (default) or `qa`
 - `app_version` — optional. The version of `gbfs-validator-java` to deploy (e.g. `2.0.68`). Can also be a snapshot version (e.g. `2.0.69-SNAPSHOT`). Leave empty to deploy the latest release from Maven Central.
 
 **Prod** (`gbfs-validator-prod.yml`):
 - `app_version` — optional, same as above.
 
-Each deployment:
-1. Pulls the latest `gbfs-validator-java` release from Maven Central (or a specified version)
+### How a deployment works
+
+Both workflows call the shared reusable deployer (`gbfs-validator-deployer.yml`) which:
+1. Authenticates to GCP using the deployer service account JSON key
 2. Builds and pushes a Docker image to Artifact Registry
 3. Runs `terraform apply` to deploy or update the Cloud Run service
-
----
-
-## GCP Project Structure
-
-| Environment | GCP Project | Cloud Run Service |
-|---|---|---|
-| `dev` | `gbfs-validator-staging` | `dev-gbfs-validator-api` |
-| `qa` | `gbfs-validator-staging` | `qa-gbfs-validator-api` |
-| `prod` | `gbfs-validator-prod` | `prod-gbfs-validator-api` |
-
-> **Note:** `dev` and `qa` share the same GCP project (`gbfs-validator-staging`). Each environment gets its own Cloud Run service, Artifact Registry path, runtime service account, and Terraform state (isolated by prefix in a shared GCS bucket). `prod` lives in a separate dedicated project.
-
----
-
-## CI/CD Workflows
-
-Two GitHub Actions workflows deploy the GBFS Validator API:
-
-| Workflow | Trigger | Environment | Image version |
-|---|---|---|---|
-| `gbfs-validator-staging.yml` | `pull_request` | `dev` | `github.sha` |
-| `gbfs-validator-staging.yml` | `push` to `main` | `qa` | `github.sha` |
-| `gbfs-validator-prod.yml` | `workflow_dispatch` | `prod` | `github.ref_name` (release tag) |
-
-Both call the shared reusable deployer (`gbfs-validator-deployer.yml`) which:
-1. Authenticates to GCP using the deployer service account JSON key
-2. Builds and pushes the Docker image to Artifact Registry
-3. Runs `terraform apply` to deploy the Cloud Run service
 
 ### Terraform State Isolation
 
