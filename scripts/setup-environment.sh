@@ -219,6 +219,7 @@ REQUIRED_SERVICES=(
   run.googleapis.com
   certificatemanager.googleapis.com
   compute.googleapis.com
+  cloudresourcemanager.googleapis.com
 )
 
 echo "🛰️  Enabling required Google APIs..."
