@@ -20,4 +20,4 @@
 # CI/CD: generated at runtime by scripts/replace-variables.sh.
 
 bucket      = "{{BUCKET_NAME}}"
-prefix      = "{{ENVIRONMENT}}/artifact-registry/state"
+prefix      = "{{AR_STATE_PREFIX}}/artifact-registry/state"

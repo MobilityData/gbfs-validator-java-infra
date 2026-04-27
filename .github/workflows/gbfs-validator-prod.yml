@@ -44,6 +44,7 @@ jobs:
       DEPLOYER_SERVICE_ACCOUNT: ${{ vars.PROD_GBFS_VALIDATOR_DEPLOYER_SA }}
       GBFS_API_IMAGE_VERSION: ${{ inputs.app_version || github.event.release.tag_name }}
       ARTIFACT_REGISTRY_REPO: gbfs-validator
+      AR_STATE_PREFIX: prod
       TF_APPLY: true
     secrets:
       GCP_GBFS_VALIDATOR_SA_KEY: ${{ secrets.PROD_GCP_GBFS_VALIDATOR_SA_KEY }}

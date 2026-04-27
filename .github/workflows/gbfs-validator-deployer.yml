@@ -49,6 +49,13 @@ on:
         description: Artifact Registry repository name (e.g. gbfs-validator-staging)
         required: true
         type: string
+      AR_STATE_PREFIX:
+        description: >
+          GCS state prefix for the artifact-registry Terraform module (e.g. staging, prod).
+          Dev and qa share the same GCP project and registry, so both pass "staging" here
+          to use a single shared state and avoid conflicts.
+        required: true
+        type: string
       GBFS_API_IMAGE_VERSION:
         description: Docker image version tag to build and deploy (empty = latest from Maven Central)
         required: false
@@ -84,6 +91,7 @@ jobs:
       - name: Populate Artifact Registry Terraform Variables
         env:
           BUCKET_NAME: ${{ inputs.BUCKET_NAME }}
+          AR_STATE_PREFIX: ${{ inputs.AR_STATE_PREFIX }}
           ENVIRONMENT: ${{ inputs.ENVIRONMENT }}
           PROJECT_ID: ${{ inputs.PROJECT_ID }}
           REGION: ${{ inputs.REGION }}
@@ -94,7 +102,7 @@ jobs:
             -in_file infra/artifact-registry/backend.conf.rename_me \
             -out_file infra/artifact-registry/backend.conf \
             -no_quotes \
-            -variables BUCKET_NAME,ENVIRONMENT
+            -variables BUCKET_NAME,AR_STATE_PREFIX
           scripts/replace-variables.sh \
             -in_file infra/artifact-registry/vars.tfvars.rename_me \
             -out_file infra/artifact-registry/vars.tfvars \

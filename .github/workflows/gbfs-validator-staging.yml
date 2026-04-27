@@ -76,6 +76,7 @@ jobs:
       DEPLOYER_SERVICE_ACCOUNT: ${{ vars.STAGING_GBFS_VALIDATOR_DEPLOYER_SA }}
       GBFS_API_IMAGE_VERSION: ${{ inputs.app_version }}
       ARTIFACT_REGISTRY_REPO: gbfs-validator-staging
+      AR_STATE_PREFIX: staging
       TF_APPLY: true
     secrets:
       GCP_GBFS_VALIDATOR_SA_KEY: ${{ secrets.STAGING_GCP_GBFS_VALIDATOR_SA_KEY }}
