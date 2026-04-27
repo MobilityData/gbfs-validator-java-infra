@@ -4,15 +4,17 @@
   from Maven Central (releases) or Maven Central Snapshots, using Maven's
   native dependency resolution. It is used by CI/CD before the Docker build.
 
-  Usage:
-    Download latest release (version defined in this file):
-      mvn -f gbfs-validator/pom.xml dependency:copy -Dartifact.version=LATEST
+  Usage (run from repo root):
+    Download latest release:
+      mvn -f scripts/pom.xml dependency:copy -Dartifact.version=LATEST
 
     Download a specific release:
-      mvn -f gbfs-validator/pom.xml dependency:copy -Dartifact.version=2.0.68
+      mvn -f scripts/pom.xml dependency:copy -Dartifact.version=2.0.68
 
     Download a snapshot:
-      mvn -f gbfs-validator/pom.xml dependency:copy -Dartifact.version=2.0.68-SNAPSHOT
+      mvn -f scripts/pom.xml dependency:copy -Dartifact.version=2.0.68-SNAPSHOT
+
+  The JAR is placed in gbfs-validator/ (one level up from this file's directory).
 -->
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
@@ -31,7 +33,8 @@
         <artifact.version>RELEASE</artifact.version>
         <artifact.groupId>org.mobilitydata</artifact.groupId>
         <artifact.artifactId>gbfs-validator-java-api</artifact.artifactId>
-        <output.directory>${project.basedir}</output.directory>
+        <!-- Output to gbfs-validator/ (sibling of scripts/). Override with -Doutput.directory=... -->
+        <output.directory>${project.basedir}/../gbfs-validator</output.directory>
     </properties>
 
     <!-- Snapshot repository for -SNAPSHOT versions -->
