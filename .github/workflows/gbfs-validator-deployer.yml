@@ -91,7 +91,7 @@ jobs:
           ARTIFACT_REGISTRY_REPO: ${{ inputs.ARTIFACT_REGISTRY_REPO }}
         run: |
           scripts/replace-variables.sh \
-            -in_file infra/backend.conf.rename_me \
+            -in_file infra/artifact-registry/backend.conf.rename_me \
             -out_file infra/artifact-registry/backend.conf \
             -no_quotes \
             -variables BUCKET_NAME,ENVIRONMENT
