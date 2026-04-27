@@ -131,7 +131,7 @@ jobs:
   docker-build-publish:
     runs-on: ubuntu-latest
     permissions: write-all
-    needs: create-artifact-registry
+    needs: create-artifact-repo
     outputs:
       resolved_version: ${{ steps.download_jar.outputs.resolved_version }}
     steps:
