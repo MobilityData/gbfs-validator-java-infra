@@ -31,7 +31,7 @@ on:
   # gbfs-validator-java version). Leave app_version empty on workflow_dispatch to
   # deploy the latest release from Maven Central instead.
   release:
-    types: [published]
+    types: [released]
 
 jobs:
   gbfs-validator-deployment:
