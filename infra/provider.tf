@@ -20,16 +20,19 @@
 # More info: https://cloud.google.com/blog/topics/developers-practitioners/using-google-cloud-service-account-impersonation-your-terraform-code
 
 provider "google" {
- alias = "impersonation"
- scopes = [
-   "https://www.googleapis.com/auth/cloud-platform",
-   "https://www.googleapis.com/auth/userinfo.email",
- ]
+  alias = "impersonation"
+  scopes = [
+    "https://www.googleapis.com/auth/cloud-platform",
+    "https://www.googleapis.com/auth/userinfo.email",
+  ]
 }
 
 data "google_service_account_access_token" "default" {
- provider               	= google.impersonation
- target_service_account 	= data.google_service_account.gbfs_deployer_service_account.email
- scopes                 	= ["userinfo-email", "cloud-platform"]
- lifetime               	= "1200s"
+  provider = google.impersonation
+  # CI/CD: target_service_account is now supplied via var.deployer_service_account
+  # (passed from vars.tfvars) rather than looked up via a data source. This allows
+  # each environment to specify its own deployer SA without hardcoding the account ID.
+  target_service_account = var.deployer_service_account
+  scopes                 = ["userinfo-email", "cloud-platform"]
+  lifetime               = "1200s"
 }

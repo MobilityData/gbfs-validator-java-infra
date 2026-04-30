@@ -15,28 +15,38 @@
 # limitations under the License.
 #
 
-# Service account to execute the cloud functions
+# GCS remote state backend. Configuration is supplied via -backend-config=backend.conf at init time.
+terraform {
+  backend "gcs" {}
+}
+
+# Service account to execute the cloud functions.
+# CI/CD: account_id is suffixed with the environment (e.g. gbfs-validator-dev-service-account)
+# because dev and qa share the same GCP project (gbfs-validator-staging). Without the suffix
+# both TF states would attempt to manage the same SA resource, causing conflicts on apply.
 resource "google_service_account" "gbfs_validator_service_account" {
-  project    = var.project_id
-  account_id   = "gbfs-validator-service-account"
-  display_name = "GBFS Validator Service Account"
+  project      = var.project_id
+  account_id   = "gbfs-validator-sa-${var.environment}"
+  display_name = "GBFS Validator Service Account (${var.environment})"
 }
 
-# Service account to deploy all resources
-data "google_service_account" "gbfs_deployer_service_account" {
-  project    = var.project_id
-  account_id = "gbfs-deployer-service-account"
-}
-
+# CI/CD: The deployer service account data source was removed. The deployer SA email
+# is now passed in via var.deployer_service_account (populated from vars.tfvars at
+# runtime), which allows each environment to use its own project's SA without
+# changing Terraform code. provider.tf references the variable directly for impersonation.
 module "cloud_run" {
-  source                = "./cloud-run-service"
-  environment           = var.environment
+  source                               = "./cloud-run-service"
+  project_id                           = var.project_id
+  environment                          = var.environment
   gbfs_validator_service_account_email = google_service_account.gbfs_validator_service_account.email
-  gbfs_api_image_version = var.gbfs_api_image_version
+  gbfs_api_image_version               = var.gbfs_api_image_version
+  artifact_registry_repo               = var.artifact_registry_repo
 }
 
 module "load_balancer" {
-  source            = "./load-balancer"
-  environment           = var.environment
+  source                 = "./load-balancer"
+  project_id             = var.project_id
+  environment            = var.environment
   cloud_run_service_name = module.cloud_run.cloud_run_service_name
 }
+

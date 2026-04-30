@@ -17,13 +17,13 @@
 variable "project_id" {
   type        = string
   description = "GCP project ID"
-  default = "gbfs-validator-staging"
+  default     = "gbfs-validator-staging"
 }
 
 variable "gcp_region" {
   type        = string
   description = "GCP region"
-  default = "northamerica-northeast1"
+  default     = "northamerica-northeast1"
 }
 
 variable "environment" {
@@ -32,35 +32,41 @@ variable "environment" {
 }
 
 variable "gbfs_validator_app_name" {
-  type = string
+  type        = string
   description = "App name for better resource management and cost tracking"
-  default = "gbfs_validator"
+  default     = "gbfs_validator"
 }
 
 variable "gbfs_api_service" {
-  type = string
+  type        = string
   description = "GBFS API service name as defined in the artifact registry"
-  default = "gbfs_validator_api"
+  default     = "gbfs_validator_api"
 }
 
 variable "gbfs_api_image_version" {
-  type = string
+  type        = string
   description = "GBFS API image version"
 }
 
 variable "java_runtime" {
-  type = string
+  type        = string
   description = "Java function runtime"
-  default = "java17"
+  default     = "java17"
 }
 
 # This is a temporary patch until the publising of the Java jar is defined
 variable "jar_file_name" {
-    type = string
-    default = "gbfs-validator-java-api.jar"
+  type    = string
+  default = "gbfs-validator-java-api.jar"
 }
 
 variable "gbfs_validator_service_account_email" {
-    type = string
-    description = "Service account use for runtime operations"
+  type        = string
+  description = "Service account use for runtime operations"
+}
+
+variable "artifact_registry_repo" {
+  type        = string
+  description = "Artifact Registry repository name (e.g. gbfs-validator-staging)"
+  default     = "gbfs-validator-staging"
 }

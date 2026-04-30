@@ -23,6 +23,14 @@
 #   - Execute: terraform init -backend-conf=backend.conf
 #   - Enjoy coding!
 # More info: https://developer.hashicorp.com/terraform/language/state/remote
+#
+# CI/CD: {{BUCKET_NAME}} is the full GCS bucket name for Terraform remote state.
+# Staging uses one shared bucket (e.g. mobilitydata-gbfs-validator-state-staging);
+# prod uses its own (e.g. mobilitydata-gbfs-validator-state-prod).
+# {{ENVIRONMENT}} isolates each environment's state within the bucket
+# (e.g. dev/terraform/state, qa/terraform/state).
+# Both are substituted at runtime by scripts/replace-variables.sh using values
+# from GitHub Actions variables.
 
-bucket      = mobilitydata-gbfs-validator-state-{{BUCKET_NAME}}
-prefix      = {{OBJECT_PREFIX}}
+bucket      = "{{BUCKET_NAME}}"
+prefix      = "{{ENVIRONMENT}}/terraform/state"

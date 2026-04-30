@@ -17,13 +17,13 @@
 variable "project_id" {
   type        = string
   description = "GCP project ID"
-  default = "gbfs-validator-staging"
+  default     = "gbfs-validator-staging"
 }
 
 variable "gcp_region" {
   type        = string
   description = "GCP region"
-  default = "northamerica-northeast1"
+  default     = "northamerica-northeast1"
 }
 
 variable "environment" {

@@ -21,5 +21,5 @@ output "function_url" {
 
 output "cloud_run_service_name" {
   description = "Name of the cloud run resource"
-  value = google_cloud_run_v2_service.gbfs_validator_api.name
+  value       = google_cloud_run_v2_service.gbfs_validator_api.name
 }
