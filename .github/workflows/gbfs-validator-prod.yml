@@ -26,10 +26,9 @@ on:
         description: "gbfs-validator-java version to deploy (e.g. 2.0.68). Leave empty for latest."
         required: false
         type: string
-  # A published release on this repo triggers a prod deployment.
-  # The release tag is passed as the app version (e.g. tag '2.0.68' deploys that
-  # gbfs-validator-java version). Leave app_version empty on workflow_dispatch to
-  # deploy the latest release from Maven Central instead.
+  # A published release on this repo triggers a prod deployment using the latest
+  # gbfs-validator-java release from Maven Central.
+  # To deploy a specific version, use workflow_dispatch with app_version set.
   release:
     types: [released]
 
@@ -42,7 +41,7 @@ jobs:
       PROJECT_ID: ${{ vars.PROD_GBFS_VALIDATOR_PROJECT_ID }}
       REGION: ${{ vars.GBFS_VALIDATOR_REGION }}
       DEPLOYER_SERVICE_ACCOUNT: ${{ vars.PROD_GBFS_VALIDATOR_DEPLOYER_SA }}
-      GBFS_API_IMAGE_VERSION: ${{ inputs.app_version || github.event.release.tag_name }}
+      GBFS_API_IMAGE_VERSION: ${{ inputs.app_version }}
       ARTIFACT_REGISTRY_REPO: gbfs-validator
       AR_STATE_PREFIX: prod
       TF_APPLY: true
