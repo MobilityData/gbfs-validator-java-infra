@@ -18,12 +18,12 @@ The Worker ([org-cloudflare-workers](https://github.com/MobilityData/org-cloudfl
 |---|---|---|
 | Requests per IP | 5/min per Cloudflare location, then 429 | Worker `wrangler.jsonc` |
 | Request body | 16 KB, then 413 | Worker `handler.js` |
-| Validations per instance | 10 at once | `gbfs-validator/function_config.json` |
-| Instances | prod 5 (50 at once), dev/qa 1 (10 at once) | same file |
+| Validations per instance | 5 at once | `gbfs-validator/function_config.json` |
+| Instances | prod 20 (100 at once), dev/qa 1 (5 at once) | same file |
 | Instance size | 4 vCPU, 4 GiB, JVM heap 75% | same file |
 | Timeout | 90 s (Cloudflare cuts at 100 s) | same file |
 
-Why: without the heap setting Java uses only 25% of memory and large feeds (8-12 MB) failed with `OutOfMemoryError`; 8 large validations used 1.75 GiB, so 10 need about 2.2 GiB (4 GiB leaves headroom). Validation is CPU-bound: one 12 MB feed takes 12 s on 1 vCPU and 5 at once on 1 vCPU hit 504s, so 10 at once needs 4 vCPU (about 30 s worst case, not yet measured).
+Why: without the heap setting Java uses only 25% of memory and large feeds (8-12 MB) failed with `OutOfMemoryError`; 8 large validations used 1.75 GiB, so 4 GiB leaves headroom. Validation is CPU-bound (about 12 s of CPU per 12 MB feed): on 4 vCPU, 10 large feeds at once took up to 82 s against the 90 s timeout, so 5 per instance.
 
 Other changes: Swagger UI is off on Cloud Run (docs move to [GitHub Pages](https://mobilitydata.github.io/gbfs-validator-java/SwaggerUI/index.html)); `feedUrl` must be a public http(s) URL.
 
