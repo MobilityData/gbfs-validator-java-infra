@@ -41,12 +41,34 @@ module "cloud_run" {
   gbfs_validator_service_account_email = google_service_account.gbfs_validator_service_account.email
   gbfs_api_image_version               = var.gbfs_api_image_version
   artifact_registry_repo               = var.artifact_registry_repo
+  edge_service_account_email           = google_service_account.gbfs_edge_service_account.email
+  allow_unauthenticated                = var.legacy_load_balancer_enabled
 }
 
+# Legacy entry point, kept only until the hostnames point at the Cloudflare Worker
+# (var.legacy_load_balancer_enabled, docs/edge-cutover.md). Remove this block, the moved block
+# and infra/load-balancer/ in the follow-up change that sets the variable to false.
 module "load_balancer" {
+  count                  = var.legacy_load_balancer_enabled ? 1 : 0
   source                 = "./load-balancer"
   project_id             = var.project_id
   environment            = var.environment
   cloud_run_service_name = module.cloud_run.cloud_run_service_name
+}
+
+# The module gained a count: keep the existing load balancer instead of recreating it.
+moved {
+  from = module.load_balancer
+  to   = module.load_balancer[0]
+}
+
+# Identity of the Cloudflare Worker that fronts the API (mobilitydata-sites in
+# MobilityData/org-cloudflare-workers). It holds roles/run.invoker on the Cloud Run service
+# and nothing else. Its key is created once with gcloud and stored as a Worker secret, so it
+# never lands in Terraform state (see docs/edge-cutover.md).
+resource "google_service_account" "gbfs_edge_service_account" {
+  project      = var.project_id
+  account_id   = "gbfs-edge-${var.environment}"
+  display_name = "GBFS Validator Cloudflare edge (${var.environment})"
 }
 

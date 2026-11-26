@@ -54,10 +54,11 @@ ROLES=(
   # Cloud Run — create/update/delete services
   roles/run.admin
 
-  # Compute — load balancer, NEG, URL maps, forwarding rules
+  # Compute: load balancer and Cloud Armor. No longer used since the Cloudflare edge
+  # replaced the load balancer, but still needed by the first apply after the cutover,
+  # which destroys the old load balancer resources. Remove both roles once every
+  # environment has been cut over (see docs/edge-cutover.md).
   roles/compute.loadBalancerAdmin
-
-  # Compute — Cloud Armor security policies
   roles/compute.securityAdmin
 
   # IAM — create service accounts (for Cloud Run runtime SA)
@@ -69,7 +70,7 @@ ROLES=(
   # IAM — attach SAs to Cloud Run services
   roles/iam.serviceAccountUser
 
-  # IAM — set IAM policies (e.g. allUsers invoker on Cloud Run)
+  # IAM - set IAM policies (e.g. the edge service account as Cloud Run invoker)
   roles/resourcemanager.projectIamAdmin
 
   # Storage — read/write Terraform state bucket

@@ -17,6 +17,16 @@ Deployments are fully automated via GitHub Actions. There is nothing to build or
 
 > **Note:** `dev` and `qa` share the same GCP project (`gbfs-validator-staging`). Each environment gets its own Cloud Run service, Artifact Registry path, runtime service account, and Terraform state. `prod` lives in a separate dedicated project.
 
+### Request path
+
+```
+client -> Cloudflare (mobilitydatabase.org zone) -> Worker mobilitydata-sites -> Cloud Run (run.app, IAM-protected)
+```
+
+- The public hostnames are served by the `mobilitydata-sites` Cloudflare Worker ([MobilityData/org-cloudflare-workers](https://github.com/MobilityData/org-cloudflare-workers), `sites/gbfs.api.mobilitydatabase.org/`). It accepts only `POST /validate` (plus the CORS preflight), checks the request, rate limits per IP and forwards it with an ID token of the `gbfs-edge-{env}` service account. Everything else gets a 404 at the edge and never starts a Cloud Run instance.
+- Cloud Run only accepts requests signed by `gbfs-edge-{env}` (`roles/run.invoker`), uses request-based billing and is capped at 2 instances in prod and 1 in dev/qa (`gbfs-validator/function_config.json`). The validator's built-in Swagger UI is turned off; the API docs are on [GitHub Pages](https://mobilitydata.github.io/gbfs-validator-java/SwaggerUI/index.html).
+- The GCP load balancer and Cloud Armor are kept only during the cutover (`legacy_load_balancer_enabled`) and removed in a follow-up change. See [docs/edge-cutover.md](docs/edge-cutover.md) for the two-step rollout and the manual steps (Worker secrets, DNS, cleanup).
+
 ### Manual deployment
 
 The staging and prod workflows can be triggered manually from the [GitHub Actions UI](https://github.com/MobilityData/gbfs-validator-java-infra/actions).
@@ -98,10 +108,9 @@ Create a Firebase project and link it to the GCP project.
 Create OAuth client credentials via the [APIs & Services > Credentials](https://console.cloud.google.com/apis/credentials) page.  
 These credentials will be passed as Terraform variables.
 
-### 5. Create SSL Certificates
+### 5. TLS
 
-Google-managed SSL certificates are created automatically by `scripts/setup-environment.sh` (step 11 below).  
-They provision once the DNS A/AAAA records are in place and the load balancer is deployed.
+Nothing to do: Cloudflare terminates TLS for the public hostname, and Cloud Run serves its run.app URL over TLS.
 
 ### 6. Enable and Configure Identity Platform
 
@@ -148,22 +157,10 @@ This script:
 - Creates the deployer service account and grants IAM roles
 - Enables required Google APIs
 - Creates (or verifies) the shared Artifact Registry repository
-- Creates global static IPv4 and IPv6 addresses for the load balancer (`{env}-lb-ipv4`, `{env}-lb-ipv6`)
-- Creates a Google-managed SSL certificate for `{env}.gbfs.api.mobilitydatabase.org`
 
-At the end it prints the IP addresses you will need for DNS.
+### 11a. Connect the Cloudflare edge
 
-### 11a. Create DNS Records
-
-After running the setup script, ask your DNS administrator (Cloudflare) to create:
-
-| Type | Name | Value |
-|---|---|---|
-| `A` | `{env}.gbfs.api.mobilitydatabase.org` | IPv4 printed by the script |
-| `AAAA` | `{env}.gbfs.api.mobilitydatabase.org` | IPv6 printed by the script |
-
-> **Note:** DNS proxy must be **disabled** (grey cloud in Cloudflare) to allow Google-managed cert provisioning.  
-> The SSL certificate will complete provisioning automatically once DNS resolves to the load balancer IP.
+After the first Terraform deploy of the environment, follow [docs/edge-cutover.md](docs/edge-cutover.md): create the edge service account key, add the Worker secrets, and point `{env}.gbfs.api.mobilitydatabase.org` at the Worker (proxied DNS record).
 
 ### 12. Generate a Deployer Service Account Key (for CI)
 

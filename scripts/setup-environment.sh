@@ -42,7 +42,9 @@
 # - Artifact Registry repository: gbfs-validator-<ENVIRONMENT>
 # - Artifact Registry cleanup policies (keep latest 5 images, delete untagged >30d)
 # - Google APIs enabled: artifactregistry, cloudfunctions, cloudbuild, run,
-#   certificatemanager, compute
+#   cloudresourcemanager
+# - No load balancer, static IPs or SSL certificates: the public hostname is served by a
+#   Cloudflare Worker (see docs/edge-cutover.md)
 # - IAM Policy Binding for deployer to impersonate gbfs-validator-service-account
 #
 # Usage:
@@ -217,8 +219,6 @@ REQUIRED_SERVICES=(
   cloudfunctions.googleapis.com
   cloudbuild.googleapis.com
   run.googleapis.com
-  certificatemanager.googleapis.com
-  compute.googleapis.com
   cloudresourcemanager.googleapis.com
 )
 
@@ -239,57 +239,18 @@ done
 
 echo "🎉 Setup complete for project $PROJECT_ID"
 
-# === Global LB IP addresses ===
-IPV4_NAME="${ENVIRONMENT}-lb-ipv4"
-IPV6_NAME="${ENVIRONMENT}-lb-ipv6"
-
-if gcloud compute addresses describe "${IPV4_NAME}" --project="${PROJECT_ID}" --global &>/dev/null; then
-  IPV4=$(gcloud compute addresses describe "${IPV4_NAME}" --project="${PROJECT_ID}" --global --format="value(address)")
-  echo "✅ IPv4 already exists: ${IPV4_NAME} → ${IPV4}"
-else
-  echo "➕ Creating global IPv4: ${IPV4_NAME} ..."
-  gcloud compute addresses create "${IPV4_NAME}" --project="${PROJECT_ID}" --ip-version=IPV4 --global
-  IPV4=$(gcloud compute addresses describe "${IPV4_NAME}" --project="${PROJECT_ID}" --global --format="value(address)")
-  echo "✅ Created: ${IPV4_NAME} → ${IPV4}"
-fi
-
-if gcloud compute addresses describe "${IPV6_NAME}" --project="${PROJECT_ID}" --global &>/dev/null; then
-  IPV6=$(gcloud compute addresses describe "${IPV6_NAME}" --project="${PROJECT_ID}" --global --format="value(address)")
-  echo "✅ IPv6 already exists: ${IPV6_NAME} → ${IPV6}"
-else
-  echo "➕ Creating global IPv6: ${IPV6_NAME} ..."
-  gcloud compute addresses create "${IPV6_NAME}" --project="${PROJECT_ID}" --ip-version=IPV6 --global
-  IPV6=$(gcloud compute addresses describe "${IPV6_NAME}" --project="${PROJECT_ID}" --global --format="value(address)")
-  echo "✅ Created: ${IPV6_NAME} → ${IPV6}"
-fi
-
-# === Google-managed SSL certificate ===
-# Prod uses the bare domain; all other envs use {env}.domain
+# === Next steps ===
 if [[ "${ENVIRONMENT}" == "prod" ]]; then
   DOMAIN="gbfs.api.mobilitydatabase.org"
 else
   DOMAIN="${ENVIRONMENT}.gbfs.api.mobilitydatabase.org"
 fi
-CERT_NAME="${ENVIRONMENT}-gbfs-api-mobilitydatabase-org"
-
-if gcloud compute ssl-certificates describe "${CERT_NAME}" --project="${PROJECT_ID}" --global &>/dev/null; then
-  echo "✅ SSL certificate already exists: ${CERT_NAME}"
-else
-  echo "➕ Creating Google-managed SSL certificate: ${CERT_NAME} ..."
-  gcloud compute ssl-certificates create "${CERT_NAME}" \
-    --project="${PROJECT_ID}" \
-    --domains="${DOMAIN}" \
-    --global
-  echo "✅ Created: ${CERT_NAME} (provisioning pending DNS)"
-fi
 
 echo ""
 echo "=========================================="
-echo "  ✅ Bootstrap complete for: ${ENVIRONMENT}"
+echo "  Bootstrap complete for: ${ENVIRONMENT}"
 echo ""
-echo "  Next: create DNS records for ${DOMAIN}:"
-echo "    A    ${IPV4}"
-echo "    AAAA ${IPV6}"
-echo ""
-echo "  SSL cert provisions automatically once DNS resolves."
+echo "  Public traffic for ${DOMAIN} goes through the Cloudflare Worker"
+echo "  (mobilitydata-sites in MobilityData/org-cloudflare-workers), not a GCP load balancer."
+echo "  After the first Terraform deploy, follow docs/edge-cutover.md to connect it."
 echo "=========================================="
