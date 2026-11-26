@@ -30,8 +30,8 @@ terraform {
 locals {
   gbfs_validator_config  = jsondecode(file("${path.module}/../../gbfs-validator/function_config.json"))
   artifact_registry_repo = "${var.artifact_registry_repo}/${var.environment}"
-  # The instance cap is the hard cost ceiling: with request-based billing an instance costs
-  # nothing while idle, and at most max_instance_count instances can ever be billed at once.
+  # The instance cap bounds compute spend: with request-based billing an idle instance costs
+  # nothing. It does not cap egress or logging, and Cloud Run can briefly exceed it during a rollout.
   max_instance_count = var.environment == "prod" ? local.gbfs_validator_config.max_instance_count : local.gbfs_validator_config.max_instance_count_non_prod
 }
 
@@ -76,6 +76,8 @@ resource "google_cloud_run_v2_service" "gbfs_validator_api" {
         # Request-based billing: CPU is billed only while a request is processed (and during
         # startup). Instance-based billing kept an idle instance billed after every bot hit.
         cpu_idle = true
+        # Faster Spring Boot cold starts when scaling from zero.
+        startup_cpu_boost = true
       }
       # Without it the JVM caps its heap at 25% of the container memory, and large feeds fail with
       # OutOfMemoryError while most of the memory is unused (load test in docs/edge-cutover.md).
