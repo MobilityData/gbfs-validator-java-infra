@@ -23,7 +23,7 @@ This replaces the GCP load balancer and Cloud Armor. Terraform covers everything
 | Validate requests per client IP | 5 per minute, per Cloudflare location | Worker `ratelimits` (`wrangler.jsonc` in org-cloudflare-workers) | 429, `Retry-After: 60` |
 | Request body | 16 KB | Worker `MAX_BODY_BYTES` | 413 |
 | Validations per instance | 5 at once | `max_instance_request_concurrency` in `gbfs-validator/function_config.json` | Queued by Cloud Run |
-| Instances | 4 in prod (20 at once), 1 in dev/qa (5 at once) | `max_instance_count`, `max_instance_count_non_prod` in the same file | 429 after a short queue |
+| Instances | 10 in prod (50 at once), 1 in dev/qa (5 at once) | `max_instance_count`, `max_instance_count_non_prod` in the same file | 429 after a short queue |
 | Instance size | 1 vCPU, 2 GiB, JVM heap 75% (`JAVA_TOOL_OPTIONS=-XX:MaxRAMPercentage=75`) | `available_cpu`, `available_memory`, `java_tool_options` in the same file | Heap: `OutOfMemoryError` (500) |
 | Request timeout | 60 s | `timeout` in the same file | 504 |
 
