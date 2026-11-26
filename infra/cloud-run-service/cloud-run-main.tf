@@ -77,6 +77,12 @@ resource "google_cloud_run_v2_service" "gbfs_validator_api" {
         # startup). Instance-based billing kept an idle instance billed after every bot hit.
         cpu_idle = true
       }
+      # Without it the JVM caps its heap at 25% of the container memory, and large feeds fail with
+      # OutOfMemoryError while most of the memory is unused (load test in docs/edge-cutover.md).
+      env {
+        name  = "JAVA_TOOL_OPTIONS"
+        value = local.gbfs_validator_config.java_tool_options
+      }
       # The validator ships Swagger UI (springdoc) for whoever runs it. Our deployment serves
       # only POST /validate; the public API docs are on GitHub Pages (MobilityData/gbfs-validator-java).
       env {

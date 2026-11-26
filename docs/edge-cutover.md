@@ -20,15 +20,16 @@ This replaces the GCP load balancer and Cloud Armor. Terraform covers everything
 
 | Limit | Value | Where | When exceeded |
 |---|---|---|---|
-| Validate requests per client IP | 5 per minute, counted per Cloudflare location | Worker `ratelimits` (`wrangler.jsonc` in org-cloudflare-workers) | 429, `Retry-After: 60` |
+| Validate requests per client IP | 5 per minute, per Cloudflare location | Worker `ratelimits` (`wrangler.jsonc` in org-cloudflare-workers) | 429, `Retry-After: 60` |
 | Request body | 16 KB | Worker `MAX_BODY_BYTES` | 413 |
-| Validations per instance | 2 at once | `max_instance_request_concurrency` in `gbfs-validator/function_config.json` | Queued by Cloud Run |
-| Instances | 5 in prod, 1 in dev/qa | `max_instance_count`, `max_instance_count_non_prod` in the same file | Cloud Run returns 429 after a short queue |
+| Validations per instance | 5 at once | `max_instance_request_concurrency` in `gbfs-validator/function_config.json` | Queued by Cloud Run |
+| Instances | 4 in prod (20 at once), 1 in dev/qa (5 at once) | `max_instance_count`, `max_instance_count_non_prod` in the same file | 429 after a short queue |
+| Instance size | 1 vCPU, 2 GiB, JVM heap 75% (`JAVA_TOOL_OPTIONS=-XX:MaxRAMPercentage=75`) | `available_cpu`, `available_memory`, `java_tool_options` in the same file | Heap: `OutOfMemoryError` (500) |
 | Request timeout | 60 s | `timeout` in the same file | 504 |
 
-Measured on dev (1 vCPU, 1 GiB), a validation takes about 1 to 7 s once the instance is warm, and 5 to 8 s on a cold start. Validations are CPU-bound, so two at once on one instance share its vCPU: 4 parallel validations of a large feed took 16 s in total. Prod therefore absorbs peaks with instances, not concurrency: 10 validations in flight, roughly 50 to 100 per minute depending on feed size.
+**Load test** (2026-11-26, worst case: concurrent validations of 8 to 12 MB feeds, Dott Paris and Bolt). Without the heap setting the JVM uses only 25% of the memory: prod at 1 GiB threw `OutOfMemoryError` from 4 concurrent validations with the container at 47% memory. With heap 75%: at 1 GiB, 4 at once peaked at 986 MiB and 6 were killed; at 2 GiB, 6 peaked at 1.3 GiB and 8 at 1.75 GiB, all successful. 5 per instance at 2 GiB leaves room for larger feeds. Typical feeds (0.2 to 2 MB) validate in 1 to 7 s and need far less.
 
-Cost follows usage: an idle instance costs nothing, and each validation costs well under 0.01 CAD. The per-IP rate limit is the control on sustained use; the instance cap bounds the worst case (about 64 CAD per instance busy for a whole month). To change a limit, edit the value in the file listed above; the budget alerts below flag any unexpected spend.
+Cost follows usage: an idle instance costs nothing, and a validation costs well under 0.01 CAD. The per-IP rate limit controls sustained use; the instance cap bounds the worst case (about 70 CAD per 2 GiB instance busy for a whole month). The budget alerts below flag unexpected spend.
 
 ## Before the cutover
 
@@ -42,11 +43,11 @@ Cost follows usage: an idle instance costs nothing, and each validation costs we
 The cutover is split so the hostnames keep working while the GCP side changes:
 
 1. **This change** (`legacy_load_balancer_enabled = true`, the default): the load balancer, Cloud Armor and the public `allUsers` invoker stay, next to the new edge service account and its invoker. Cloud Run ingress opens to all traffic and switches to request-based billing. The hostnames keep working through the load balancer until the Worker takes them over. During this step the run.app URL is publicly invokable, as the load balancer needs it.
-2. **Follow-up change**, once the Worker serves all three hostnames: set `legacy_load_balancer_enabled = false` (or delete the `load_balancer` module, its `moved` block, `infra/load-balancer/` and the `allUsers` invoker). Terraform destroys the load balancer, Cloud Armor and the public invoker, and only the edge service account can call Cloud Run.
+2. **Follow-up change**, once the Worker serves all three hostnames (step 6 of the cutover): set `legacy_load_balancer_enabled = false` (or delete the `load_balancer` module, its `moved` block, `infra/load-balancer/` and the `allUsers` invoker). Terraform destroys the load balancer, Cloud Armor and the public invoker, and only the edge service account can call Cloud Run.
 
 ## Cutover
 
-The Worker serves the hostnames as **Workers Custom Domains**, not routes on proxied records. Universal SSL on the zone's Free plan only covers one subdomain level (`*.mobilitydatabase.org`), so a proxied `gbfs.api.mobilitydatabase.org` record would fail TLS, and HSTS preload makes browsers refuse it. A Custom Domain gets its own certificate and DNS record from Cloudflare, at no cost. The Worker repository deploys on every merge to `main` (Workers Builds) and declares all three Custom Domains, so the DNS switch happens for all environments at once, in step 4.
+The Worker serves the hostnames as **Workers Custom Domains**, not routes on proxied records. Universal SSL on the zone's Free plan only covers one subdomain level (`*.mobilitydatabase.org`), so a proxied `gbfs.api.mobilitydatabase.org` record would fail TLS, and HSTS preload makes browsers refuse it. A Custom Domain gets its own certificate and DNS record from Cloudflare, at no cost. The Worker repository deploys on every merge to `main` (Workers Builds), so each merge that adds a Custom Domain is a DNS switch. `dev` and `qa` switch first (step 4); `prod` follows in a separate Worker change once they are verified (step 6).
 
 1. **Deploy Terraform** to each environment as usual: `dev` from the pull request, `qa` on merge to `main`, `prod` from the manual workflow, with `app_version` set to the validator release from "Before the cutover". The plan creates `gbfs-edge-{env}` and its invoker binding and updates the Cloud Run service. It must not destroy anything: the `moved` blocks keep the existing load balancer and public invoker.
 
@@ -64,7 +65,7 @@ The Worker serves the hostnames as **Workers Custom Domains**, not routes on pro
    gcloud run services describe dev-gbfs-validator-api --region northamerica-northeast1 --project gbfs-validator-staging --format='value(status.url)' | npx wrangler secret put GBFS_VALIDATOR_DEV_URL --name mobilitydata-sites
    ```
 
-4. **Switch DNS by merging the Worker change.** In the `mobilitydatabase.org` DNS records, delete the grey-cloud `A` and `AAAA` records of `gbfs.api`, `qa.gbfs.api` and `dev.gbfs.api` (six records), then merge the `org-cloudflare-workers` change right away. Workers Builds deploys the Worker and creates the three Custom Domains with their DNS records and certificates; nothing else needs adding in DNS. The deploy fails if any of the six records still exists: delete it and retry the build. The hostnames are unreachable from the record deletion until the certificates are active, usually a few minutes.
+4. **Switch dev and qa by merging the Worker change.** In the `mobilitydatabase.org` DNS records, delete the grey-cloud `A` and `AAAA` records of `qa.gbfs.api` and `dev.gbfs.api` (four records), then merge the `org-cloudflare-workers` change right away. Workers Builds deploys the Worker and creates both Custom Domains with their DNS records and certificates; nothing else needs adding in DNS. The deploy fails, blocking deploys of every site on that Worker, while any of the four records still exists: delete it and retry the build. The hostnames are unreachable from the record deletion until the certificates are active, usually a few minutes.
 
 5. **Check**, for each hostname:
 
@@ -74,6 +75,8 @@ The Worker serves the hostnames as **Workers Custom Domains**, not routes on pro
    ```
 
    Expected: `404` (answered by the Worker), then a validation report. The Worker repository's `verify-live` run after the merge checks the same 404s.
+
+6. **Switch prod** the same way once dev and qa work: a Worker change adds `gbfs.api.mobilitydatabase.org` to `src/sites.js`, its Custom Domain to `wrangler.jsonc` and its expected results; delete the two grey-cloud records of `gbfs.api`, merge, and check as in step 5.
 
 ## After all three environments
 
