@@ -17,25 +17,27 @@ This replaces the GCP load balancer and Cloud Armor. Terraform covers everything
 - `feedUrl` must be an `http`/`https` URL on a public host, and the body must be JSON under 16 KB.
 - At most 2 validations run at once per instance, with 2 instances in prod and 1 in dev/qa (`gbfs-validator/function_config.json`). Above that, Cloud Run returns 429.
 
-## Before the first environment
+## Before the cutover
 
 1. **Cloudflare, custom rule "Challenge abusive countries"** (zone `mobilitydatabase.org`, Security rules): append `and not (http.host contains "gbfs.api.mobilitydatabase.org")` to its expression. API clients cannot solve a Managed Challenge, so without this, validator users in those countries are blocked.
-2. **Worker:** merge the `org-cloudflare-workers` change that adds `sites/gbfs.api.mobilitydatabase.org/`. Its routes do nothing until a hostname's DNS record is proxied (step 4 below), so merging early is safe. Its `verify-live` run checks the new hostnames too, and fails for each environment not yet cut over.
-3. Do not turn on Bot Fight Mode or raise the Security Level on the zone: both apply to every hostname and would challenge API clients.
+2. Do not turn on Bot Fight Mode or raise the Security Level on the zone: both apply to every hostname and would challenge API clients.
+3. **Validator release** with `loader.public-network-only` (gbfs-validator-java), deployed with `app_version` in step 1 of the cutover (see "Internal addresses and local files").
 4. **API docs:** in [gbfs-validator-java](https://github.com/MobilityData/gbfs-validator-java/settings/pages) Settings, Pages, deploy from branch `master`, folder `/docs` (same as mobility-feed-api), once its `docs/SwaggerUI/` change is merged.
 
 ## Two-step rollout
 
-The cutover is split so no hostname goes down:
+The cutover is split so the hostnames keep working while the GCP side changes:
 
-1. **This change** (`legacy_load_balancer_enabled = true`, the default): the load balancer, Cloud Armor and the public `allUsers` invoker stay, next to the new edge service account and its invoker. Cloud Run ingress opens to all traffic and switches to request-based billing. The hostnames keep working through the load balancer until their DNS records point at the Worker. During this step the run.app URL is publicly invokable, as the load balancer needs it.
-2. **Follow-up change**, once all three environments are cut over: set `legacy_load_balancer_enabled = false` (or delete the `load_balancer` module, its `moved` block, `infra/load-balancer/` and the `allUsers` invoker). Terraform destroys the load balancer, Cloud Armor and the public invoker, and only the edge service account can call Cloud Run.
+1. **This change** (`legacy_load_balancer_enabled = true`, the default): the load balancer, Cloud Armor and the public `allUsers` invoker stay, next to the new edge service account and its invoker. Cloud Run ingress opens to all traffic and switches to request-based billing. The hostnames keep working through the load balancer until the Worker takes them over. During this step the run.app URL is publicly invokable, as the load balancer needs it.
+2. **Follow-up change**, once the Worker serves all three hostnames: set `legacy_load_balancer_enabled = false` (or delete the `load_balancer` module, its `moved` block, `infra/load-balancer/` and the `allUsers` invoker). Terraform destroys the load balancer, Cloud Armor and the public invoker, and only the edge service account can call Cloud Run.
 
-## Per environment (dev, then qa, then prod)
+## Cutover
 
-1. **Deploy Terraform** as usual: `dev` from the pull request, `qa` on merge to `main`, `prod` from the manual workflow. The plan creates `gbfs-edge-{env}` and its invoker binding and updates the Cloud Run service. It must not destroy anything: the `moved` blocks keep the existing load balancer and public invoker.
+The Worker serves the hostnames as **Workers Custom Domains**, not routes on proxied records. Universal SSL on the zone's Free plan only covers one subdomain level (`*.mobilitydatabase.org`), so a proxied `gbfs.api.mobilitydatabase.org` record would fail TLS, and HSTS preload makes browsers refuse it. A Custom Domain gets its own certificate and DNS record from Cloudflare, at no cost. The Worker repository deploys on every merge to `main` (Workers Builds) and declares all three Custom Domains, so the DNS switch happens for all environments at once, in step 4.
 
-2. **Edge service account key**, as Worker secret `GBFS_VALIDATOR_<ENV>_SA_KEY` (`DEV`, `QA` or `PROD`). The key never goes into Terraform state or the repository. With Wrangler logged in to the MobilityData account, from a checkout of `org-cloudflare-workers`:
+1. **Deploy Terraform** to each environment as usual: `dev` from the pull request, `qa` on merge to `main`, `prod` from the manual workflow, with `app_version` set to the validator release from "Before the cutover". The plan creates `gbfs-edge-{env}` and its invoker binding and updates the Cloud Run service. It must not destroy anything: the `moved` blocks keep the existing load balancer and public invoker.
+
+2. **Edge service account keys**, as Worker secrets `GBFS_VALIDATOR_DEV_SA_KEY`, `GBFS_VALIDATOR_QA_SA_KEY` and `GBFS_VALIDATOR_PROD_SA_KEY`. The keys never go into Terraform state or a repository. With Wrangler logged in to the MobilityData account, from a checkout of `org-cloudflare-workers` (shown for `dev`; `qa` uses `gbfs-edge-qa@gbfs-validator-staging`, `prod` uses `gbfs-edge-prod@gbfs-validator-prod`):
 
    ```bash
    gcloud iam service-accounts keys create /dev/stdout --iam-account=gbfs-edge-dev@gbfs-validator-staging.iam.gserviceaccount.com | npx wrangler secret put GBFS_VALIDATOR_DEV_SA_KEY --name mobilitydata-sites
@@ -43,24 +45,22 @@ The cutover is split so no hostname goes down:
 
    Or create the key file, paste its content in the dashboard (Workers & Pages, `mobilitydata-sites`, Settings, Variables and Secrets, type Secret), then delete the file.
 
-3. **Cloud Run URL**, as Worker secret `GBFS_VALIDATOR_<ENV>_URL`. It is also the `cloud_run_url` Terraform output. The Worker strips a trailing slash.
+3. **Cloud Run URLs**, as Worker secrets `GBFS_VALIDATOR_DEV_URL`, `GBFS_VALIDATOR_QA_URL` and `GBFS_VALIDATOR_PROD_URL`. Each is also the `cloud_run_url` Terraform output. Workers Builds deploys keep secrets, so steps 2 and 3 are done once.
 
    ```bash
    gcloud run services describe dev-gbfs-validator-api --region northamerica-northeast1 --project gbfs-validator-staging --format='value(status.url)' | npx wrangler secret put GBFS_VALIDATOR_DEV_URL --name mobilitydata-sites
    ```
 
-   Workers Builds deploys keep secrets, so this is done once per environment.
+4. **Switch DNS by merging the Worker change.** In the `mobilitydatabase.org` DNS records, delete the grey-cloud `A` and `AAAA` records of `gbfs.api`, `qa.gbfs.api` and `dev.gbfs.api` (six records), then merge the `org-cloudflare-workers` change right away. Workers Builds deploys the Worker and creates the three Custom Domains with their DNS records and certificates; nothing else needs adding in DNS. The deploy fails if any of the six records still exists: delete it and retry the build. The hostnames are unreachable from the record deletion until the certificates are active, usually a few minutes.
 
-4. **DNS** (zone `mobilitydatabase.org`): delete the grey-cloud `A` and `AAAA` records of the hostname, then add `AAAA <hostname> 100::`, **Proxied**. `100::` is a discard address: the Worker answers every request and never contacts it. Traffic moves from the load balancer to the Worker as the change propagates; both work in the meantime.
-
-5. **Check:**
+5. **Check**, for each hostname:
 
    ```bash
    curl -s -o /dev/null -w '%{http_code}\n' https://dev.gbfs.api.mobilitydatabase.org/
    curl -s -X POST https://dev.gbfs.api.mobilitydatabase.org/validate -H 'Content-Type: application/json' -d '{"feedUrl":"https://gbfs.lyft.com/gbfs/2.3/bay/gbfs.json"}' | head -c 300; echo
    ```
 
-   Expected: `404` (answered by the Worker), then a validation report.
+   Expected: `404` (answered by the Worker), then a validation report. The Worker repository's `verify-live` run after the merge checks the same 404s.
 
 ## After all three environments
 

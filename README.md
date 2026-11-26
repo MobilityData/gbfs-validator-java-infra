@@ -24,7 +24,7 @@ client -> Cloudflare (mobilitydatabase.org zone) -> Worker mobilitydata-sites ->
 ```
 
 - The public hostnames are served by the `mobilitydata-sites` Cloudflare Worker ([MobilityData/org-cloudflare-workers](https://github.com/MobilityData/org-cloudflare-workers), `sites/gbfs.api.mobilitydatabase.org/`). It accepts only `POST /validate` (plus the CORS preflight), checks the request, rate limits per IP and forwards it with an ID token of the `gbfs-edge-{env}` service account. Everything else gets a 404 at the edge and never starts a Cloud Run instance.
-- Cloud Run only accepts requests signed by `gbfs-edge-{env}` (`roles/run.invoker`), uses request-based billing and is capped at 2 instances in prod and 1 in dev/qa (`gbfs-validator/function_config.json`). The validator's built-in Swagger UI is turned off; the API docs are on [GitHub Pages](https://mobilitydata.github.io/gbfs-validator-java/SwaggerUI/index.html).
+- Once the legacy load balancer is removed (follow-up change), Cloud Run only accepts requests signed by `gbfs-edge-{env}` (`roles/run.invoker`); until then the public `allUsers` invoker stays and the run.app URL is publicly reachable. Cloud Run uses request-based billing and is capped at 2 instances in prod and 1 in dev/qa (`gbfs-validator/function_config.json`). The validator's built-in Swagger UI is turned off; the API docs are on [GitHub Pages](https://mobilitydata.github.io/gbfs-validator-java/SwaggerUI/index.html).
 - The GCP load balancer and Cloud Armor are kept only during the cutover (`legacy_load_balancer_enabled`) and removed in a follow-up change. See [docs/edge-cutover.md](docs/edge-cutover.md) for the two-step rollout and the manual steps (Worker secrets, DNS, cleanup).
 
 ### Manual deployment
@@ -157,10 +157,11 @@ This script:
 - Creates the deployer service account and grants IAM roles
 - Enables required Google APIs
 - Creates (or verifies) the shared Artifact Registry repository
+- Creates the legacy load balancer's static IPs (`{env}-lb-ipv4`, `{env}-lb-ipv6`) and SSL certificate, needed only while `legacy_load_balancer_enabled` is true
 
 ### 11a. Connect the Cloudflare edge
 
-After the first Terraform deploy of the environment, follow [docs/edge-cutover.md](docs/edge-cutover.md): create the edge service account key, add the Worker secrets, and point `{env}.gbfs.api.mobilitydatabase.org` at the Worker (proxied DNS record).
+After the first Terraform deploy of the environment, follow [docs/edge-cutover.md](docs/edge-cutover.md): create the edge service account key, add the Worker secrets, and hand `{env}.gbfs.api.mobilitydatabase.org` to the Worker as a Workers Custom Domain (delete its old DNS records; the Custom Domain creates its own record and certificate).
 
 ### 12. Generate a Deployer Service Account Key (for CI)
 
