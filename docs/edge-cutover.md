@@ -13,9 +13,22 @@ This replaces the GCP load balancer and Cloud Armor. Terraform covers everything
 ## Behavior changes
 
 - Only `POST /validate` and its CORS preflight are served. Swagger UI (`/swagger-ui/...`) and `/v3/api-docs` are turned off on Cloud Run (`SPRINGDOC_SWAGGERUI_ENABLED=false`, `SPRINGDOC_APIDOCS_ENABLED=false`); the validator keeps them for anyone running it on their own infrastructure. The public API docs move to GitHub Pages: https://mobilitydata.github.io/gbfs-validator-java/SwaggerUI/index.html (`docs/SwaggerUI/` in gbfs-validator-java).
-- Each client IP gets 5 validate requests per minute (`ratelimits` in the Worker's `wrangler.jsonc`), then a 429 with `Retry-After: 60`.
+- Requests are rate limited and capacity is capped; see [Limits and capacity](#limits-and-capacity).
 - `feedUrl` must be an `http`/`https` URL on a public host, and the body must be JSON under 16 KB.
-- At most 2 validations run at once per instance, with 2 instances in prod and 1 in dev/qa (`gbfs-validator/function_config.json`). Above that, Cloud Run returns 429.
+
+## Limits and capacity
+
+| Limit | Value | Where | When exceeded |
+|---|---|---|---|
+| Validate requests per client IP | 5 per minute, counted per Cloudflare location | Worker `ratelimits` (`wrangler.jsonc` in org-cloudflare-workers) | 429, `Retry-After: 60` |
+| Request body | 16 KB | Worker `MAX_BODY_BYTES` | 413 |
+| Validations per instance | 2 at once | `max_instance_request_concurrency` in `gbfs-validator/function_config.json` | Queued by Cloud Run |
+| Instances | 5 in prod, 1 in dev/qa | `max_instance_count`, `max_instance_count_non_prod` in the same file | Cloud Run returns 429 after a short queue |
+| Request timeout | 60 s | `timeout` in the same file | 504 |
+
+Measured on dev (1 vCPU, 1 GiB), a validation takes about 1 to 7 s once the instance is warm, and 5 to 8 s on a cold start. Validations are CPU-bound, so two at once on one instance share its vCPU: 4 parallel validations of a large feed took 16 s in total. Prod therefore absorbs peaks with instances, not concurrency: 10 validations in flight, roughly 50 to 100 per minute depending on feed size.
+
+Cost follows usage: an idle instance costs nothing, and each validation costs well under 0.01 CAD. The per-IP rate limit is the control on sustained use; the instance cap bounds the worst case (about 64 CAD per instance busy for a whole month). To change a limit, edit the value in the file listed above; the budget alerts below flag any unexpected spend.
 
 ## Before the cutover
 
