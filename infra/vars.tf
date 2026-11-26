@@ -74,3 +74,13 @@ variable "artifact_registry_repo" {
   description = "Artifact Registry repository name shared across staging environments (e.g. gbfs-validator-staging)"
   default     = "gbfs-validator-staging"
 }
+
+# Two-step rollout of the Cloudflare edge (docs/edge-cutover.md). While true, the old load
+# balancer, Cloud Armor and the public (allUsers) invoker stay in place next to the edge
+# invoker, so the hostnames keep working until their DNS records point at the Worker.
+# Set to false in a follow-up change once every environment has been cut over.
+variable "legacy_load_balancer_enabled" {
+  type        = bool
+  description = "Keep the legacy load balancer and public invoker during the Cloudflare edge cutover"
+  default     = true
+}

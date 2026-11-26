@@ -70,3 +70,14 @@ variable "artifact_registry_repo" {
   description = "Artifact Registry repository name (e.g. gbfs-validator-staging)"
   default     = "gbfs-validator-staging"
 }
+
+variable "edge_service_account_email" {
+  type        = string
+  description = "Service account the Cloudflare Worker uses to invoke the Cloud Run service"
+}
+
+variable "allow_unauthenticated" {
+  type        = bool
+  description = "Keep the public (allUsers) invoker, needed by the legacy load balancer during the Cloudflare edge cutover"
+  default     = false
+}

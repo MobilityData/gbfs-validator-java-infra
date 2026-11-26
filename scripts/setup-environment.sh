@@ -239,7 +239,10 @@ done
 
 echo "🎉 Setup complete for project $PROJECT_ID"
 
-# === Global LB IP addresses ===
+# === Legacy load balancer: global IP addresses and SSL certificate ===
+# Still read by the load_balancer Terraform module while legacy_load_balancer_enabled is true
+# (Cloudflare edge cutover, docs/edge-cutover.md). Remove this block, and the compute and
+# certificatemanager APIs above, in the follow-up change that sets it to false.
 IPV4_NAME="${ENVIRONMENT}-lb-ipv4"
 IPV6_NAME="${ENVIRONMENT}-lb-ipv6"
 
@@ -287,9 +290,8 @@ echo ""
 echo "=========================================="
 echo "  ✅ Bootstrap complete for: ${ENVIRONMENT}"
 echo ""
-echo "  Next: create DNS records for ${DOMAIN}:"
-echo "    A    ${IPV4}"
-echo "    AAAA ${IPV6}"
-echo ""
-echo "  SSL cert provisions automatically once DNS resolves."
+echo "  Public traffic for ${DOMAIN} goes through the Cloudflare Worker"
+echo "  (mobilitydata-sites in MobilityData/org-cloudflare-workers) as a Workers Custom Domain."
+echo "  After the first Terraform deploy, follow docs/edge-cutover.md to connect it."
+echo "  The IPs and certificate above only serve the legacy load balancer during the cutover."
 echo "=========================================="
